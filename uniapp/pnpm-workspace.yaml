@@ -10,5 +10,4 @@ allowBuilds:
   core-js: true
   esbuild: true
   minidev: true
-  simple-git-hooks: true
   vue-demi: true
