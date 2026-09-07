@@ -1,0 +1,1111 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "utoipa-axum",
+    "description": "Utoipa's axum bindings for seamless integration for the two",
+    "contact": {
+      "name": "Juha Kukkonen",
+      "email": "juha7kukkonen@gmail.com"
+    },
+    "license": {
+      "name": "MIT OR Apache-2.0",
+      "identifier": "MIT OR Apache-2.0"
+    },
+    "version": "0.2.0"
+  },
+  "paths": {
+    "/api/v1/auth/jwt/echo": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "Auth__jwtEcho",
+        "responses": {
+          "200": {
+            "description": "认证检查示例",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_JwtEchoResp"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "令牌无效"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/jwt/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "Auth__jwtLogin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_LoginResp"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数或校验错误"
+          },
+          "403": {
+            "description": "用户名或密码错误"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/jwt/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "Auth__jwtLogout",
+        "responses": {
+          "200": {
+            "description": "已撤销全部刷新令牌",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_MessageResp"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "令牌无效"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/jwt/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "Auth__jwtMe",
+        "responses": {
+          "200": {
+            "description": "当前用户",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_AuthStateResp"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "令牌无效"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/jwt/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "Auth__jwtRefresh",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "新令牌对",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_RefreshResp"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数或校验错误"
+          },
+          "401": {
+            "description": "刷新令牌无效或已过期"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "Auth__login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功,设置会话 Cookie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_AuthStateResp"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数或校验错误"
+          },
+          "403": {
+            "description": "用户名或密码错误"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "Auth__logout",
+        "responses": {
+          "200": {
+            "description": "已退出",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_MessageResp"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "Auth__me",
+        "responses": {
+          "200": {
+            "description": "当前用户",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_AuthStateResp"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "Auth__register",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "注册的用户",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_UserResp"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数或校验错误"
+          },
+          "409": {
+            "description": "用户名或邮箱已存在"
+          }
+        }
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "operationId": "Health__check",
+        "responses": {
+          "200": {
+            "description": "健康检查",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_String"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "tags": [
+          "user"
+        ],
+        "operationId": "User__list",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码,从 1 开始",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "每页条数,1-100",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "用户分页列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_PageData_UserResp"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数或校验错误"
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "403": {
+            "description": "权限不足"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "user"
+        ],
+        "operationId": "User__create",
+        "responses": {
+          "200": {
+            "description": "创建的用户",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_UserResp"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数或校验错误"
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "403": {
+            "description": "权限不足"
+          },
+          "409": {
+            "description": "用户名或邮箱已存在"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{id}": {
+      "get": {
+        "tags": [
+          "user"
+        ],
+        "operationId": "User__get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "用户 ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "用户信息",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_UserResp"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数或校验错误"
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "403": {
+            "description": "权限不足"
+          },
+          "404": {
+            "description": "用户不存在"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "user"
+        ],
+        "operationId": "User__delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "用户 ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_MessageResp"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数或校验错误"
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "403": {
+            "description": "权限不足"
+          },
+          "404": {
+            "description": "用户不存在"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{id}/password": {
+      "put": {
+        "tags": [
+          "user"
+        ],
+        "operationId": "User__changePassword",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "用户 ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "修改结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_MessageResp"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数或校验错误"
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "403": {
+            "description": "无权修改他人密码或旧密码错误"
+          },
+          "404": {
+            "description": "用户不存在"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{id}/username": {
+      "put": {
+        "tags": [
+          "user"
+        ],
+        "operationId": "User__updateUsername",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "用户 ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUsernameReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "更新后的用户",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_UserResp"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数或校验错误"
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "403": {
+            "description": "权限不足"
+          },
+          "404": {
+            "description": "用户不存在"
+          },
+          "409": {
+            "description": "用户名已存在"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiResponse_AuthStateResp": {
+        "type": "object",
+        "description": "统一响应信封:code=0 成功,非 0 为 HTTP 状态码;data 恒序列化(错误时为 null)",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "user",
+              "permissions"
+            ],
+            "properties": {
+              "permissions": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Perm"
+                }
+              },
+              "user": {
+                "$ref": "#/components/schemas/UserResp"
+              }
+            }
+          },
+          "errors": {
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ApiResponse_JwtEchoResp": {
+        "type": "object",
+        "description": "统一响应信封:code=0 成功,非 0 为 HTTP 状态码;data 恒序列化(错误时为 null)",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "user_id",
+              "username"
+            ],
+            "properties": {
+              "user_id": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "username": {
+                "type": "string"
+              }
+            }
+          },
+          "errors": {
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ApiResponse_LoginResp": {
+        "type": "object",
+        "description": "统一响应信封:code=0 成功,非 0 为 HTTP 状态码;data 恒序列化(错误时为 null)",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "access_token",
+              "refresh_token",
+              "state"
+            ],
+            "properties": {
+              "access_token": {
+                "type": "string"
+              },
+              "refresh_token": {
+                "type": "string"
+              },
+              "state": {
+                "$ref": "#/components/schemas/AuthStateResp"
+              }
+            }
+          },
+          "errors": {
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ApiResponse_MessageResp": {
+        "type": "object",
+        "description": "统一响应信封:code=0 成功,非 0 为 HTTP 状态码;data 恒序列化(错误时为 null)",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "message"
+            ],
+            "properties": {
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          "errors": {
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ApiResponse_PageData_UserResp": {
+        "type": "object",
+        "description": "统一响应信封:code=0 成功,非 0 为 HTTP 状态码;data 恒序列化(错误时为 null)",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "data": {
+            "type": "object",
+            "description": "分页数据载荷",
+            "required": [
+              "items",
+              "total",
+              "page",
+              "per_page"
+            ],
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "username",
+                    "email",
+                    "created_at",
+                    "updated_at"
+                  ],
+                  "properties": {
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "minimum": 0
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "username": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "page": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "per_page": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "total": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              }
+            }
+          },
+          "errors": {
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ApiResponse_RefreshResp": {
+        "type": "object",
+        "description": "统一响应信封:code=0 成功,非 0 为 HTTP 状态码;data 恒序列化(错误时为 null)",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "access_token",
+              "refresh_token"
+            ],
+            "properties": {
+              "access_token": {
+                "type": "string"
+              },
+              "refresh_token": {
+                "type": "string"
+              }
+            }
+          },
+          "errors": {
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ApiResponse_String": {
+        "type": "object",
+        "description": "统一响应信封:code=0 成功,非 0 为 HTTP 状态码;data 恒序列化(错误时为 null)",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "data": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ApiResponse_UserResp": {
+        "type": "object",
+        "description": "统一响应信封:code=0 成功,非 0 为 HTTP 状态码;data 恒序列化(错误时为 null)",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "id",
+              "username",
+              "email",
+              "created_at",
+              "updated_at"
+            ],
+            "properties": {
+              "created_at": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "id": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "updated_at": {
+                "type": "string"
+              },
+              "username": {
+                "type": "string"
+              }
+            }
+          },
+          "errors": {
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "AuthStateResp": {
+        "type": "object",
+        "required": [
+          "user",
+          "permissions"
+        ],
+        "properties": {
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Perm"
+            }
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserResp"
+          }
+        }
+      },
+      "ChangePasswordReq": {
+        "type": "object",
+        "required": [
+          "old_password",
+          "new_password"
+        ],
+        "properties": {
+          "new_password": {
+            "type": "string"
+          },
+          "old_password": {
+            "type": "string"
+          }
+        }
+      },
+      "JwtEchoResp": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "username"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "LoginReq": {
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "LoginResp": {
+        "type": "object",
+        "required": [
+          "access_token",
+          "refresh_token",
+          "state"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "refresh_token": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AuthStateResp"
+          }
+        }
+      },
+      "MessageResp": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "Perm": {
+        "type": "string",
+        "description": "权限点:serde 与 strum 序列化码必须一致(见 tests::test_permissions_consistency)",
+        "enum": [
+          "*",
+          "user:read",
+          "user:write",
+          "user:delete",
+          "user:*",
+          "role:read",
+          "role:write",
+          "role:delete",
+          "role:*"
+        ]
+      },
+      "RefreshReq": {
+        "type": "object",
+        "required": [
+          "refresh_token"
+        ],
+        "properties": {
+          "refresh_token": {
+            "type": "string"
+          }
+        }
+      },
+      "RefreshResp": {
+        "type": "object",
+        "required": [
+          "access_token",
+          "refresh_token"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "refresh_token": {
+            "type": "string"
+          }
+        }
+      },
+      "RegisterReq": {
+        "type": "object",
+        "required": [
+          "username",
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateUsernameReq": {
+        "type": "object",
+        "required": [
+          "username"
+        ],
+        "properties": {
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "UserResp": {
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "email",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

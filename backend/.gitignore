@@ -1,0 +1,6 @@
+.env
+.env.*
+!.env.example
+.hoshiyomi/
+logs/
+config.toml

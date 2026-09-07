@@ -1,0 +1,15 @@
+{
+  "name": "@hoshiyomi/shadcn",
+  "version": "0.1.0",
+  "exports": {
+    ".": "./module.ts"
+  },
+  "dependencies": {
+    "@lucide/vue": "^1.16.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "shadcn-nuxt": "^2.6.2",
+    "shadcn-vue": "^2.7.3",
+    "tailwind-merge": "^3.5.0"
+  }
+}

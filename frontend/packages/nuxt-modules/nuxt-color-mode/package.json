@@ -1,0 +1,10 @@
+{
+  "name": "@hoshiyomi/nuxt-color-mode",
+  "version": "0.1.0",
+  "exports": {
+    ".": "./module.ts"
+  },
+  "dependencies": {
+    "@nuxtjs/color-mode": "^4.0.0"
+  }
+}

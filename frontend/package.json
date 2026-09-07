@@ -1,0 +1,23 @@
+{
+  "name": "hoshiyomi-frontend",
+  "private": true,
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write . --config packages/nuxt-modules/.prettierrc.json",
+    "format:check": "prettier --check . --config packages/nuxt-modules/.prettierrc.json",
+    "check": "run-p lint format:check",
+    "type-check": "pnpm --filter admin run type-check",
+    "gen:api": "alova gen -f"
+  },
+  "devDependencies": {
+    "@alova/wormhole": "^1.5.0",
+    "@types/node": "^26.1.0",
+    "@hoshiyomi/alova": "workspace:^",
+    "eslint": "^9.39.4",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^3.8.3",
+    "rimraf": "^6.1.2",
+    "typescript": "^5.9.3"
+  }
+}

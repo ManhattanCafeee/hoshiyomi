@@ -1,0 +1,12 @@
+{
+  "name": "@hoshiyomi/util",
+  "version": "0.1.0",
+  "exports": {
+    ".": "./module.ts",
+    "./lib": "./lib/index.ts",
+    "./lib/*": "./lib/*.ts",
+    "./type": "./types/index.d.ts",
+    "./types/*": "./types/*.d.ts"
+  },
+  "dependencies": {}
+}

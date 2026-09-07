@@ -1,0 +1,96 @@
+// Colors
+$app-primary: #1a1a1a;
+$app-bg: #fafafa;
+$app-card: #ffffff;
+$app-border: #e4e4e4;
+$app-divider: #ededed;
+$app-text: #0a0a0a;
+$app-text-sub: #555555;
+$app-text-hint: #8a8a8a;
+$app-placeholder: #c8c8c8;
+$app-success: #1a1a1a;
+$app-warning: #b8860b;
+$app-danger: #8b2c2c;
+$app-info: #8a8a8a;
+$app-primary-light: #3a3a3a;
+
+// Status background tint (low-opacity tint used for the overall background of status cards/headers)
+$app-status-bg-success: rgba($app-success, 0.06);
+$app-status-bg-warning: rgba($app-warning, 0.06);
+$app-status-bg-info: rgba($app-info, 0.06);
+$app-status-bg-danger: rgba($app-danger, 0.06);
+
+// Border radius
+$app-r-xs: 4rpx;
+$app-r-sm: 8rpx;
+$app-r-md: 12rpx;
+$app-r-lg: 18rpx;
+$app-r-xl: 24rpx;
+$app-r-2xl: 40rpx;
+$app-r-full: 9999rpx;
+
+// Spacing
+
+$app-space-3xs: 4rpx;
+$app-space-2xs: 6rpx;
+$app-space-xs: 8rpx;
+$app-space-12: 12rpx;
+$app-space-sm: 16rpx;
+$app-space-md: 24rpx;
+$app-space-lg: 32rpx;
+$app-space-xl: 48rpx;
+$app-space-20: 20rpx;
+
+// Card inner spacing (~30% tighter than the generic spacing)
+$app-space-card-y: 10rpx;
+$app-space-card-header-gap: 5rpx;
+$app-space-card-body-gap: 4rpx;
+
+// Card typography (~20-30% smaller than the generic font sizes)
+$app-font-card-title: 26rpx;
+$app-font-card-sub: 24rpx;
+$app-line-height-card: 1.2;
+
+$app-space-40: 40rpx;
+
+$app-font-xs: 20rpx;
+$app-font-sm: 24rpx;
+$app-font-base: 28rpx;
+$app-font-md: 30rpx;
+$app-font-lg: 34rpx;
+$app-font-xl: 40rpx;
+$app-font-2xl: 48rpx;
+
+// Overlay
+$app-overlay: rgba(0, 0, 0, 0.4);
+
+
+// Animation durations
+$app-anim-fast: 0.15s;
+$app-anim-base: 0.2s;
+$app-anim-sheet: 0.25s;
+$app-anim-shimmer: 1.5s;
+$app-anim-spin: 0.9s;
+// Mixins
+@mixin app-card {
+  background: $app-card;
+  border: 1rpx solid $app-border;
+  border-radius: $app-r-lg;
+}
+@mixin app-safe-top {
+  height: env(safe-area-inset-top);
+  min-height: 44rpx;
+}
+@mixin app-safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), $app-space-20);
+}
+@mixin app-flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+@mixin app-flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}

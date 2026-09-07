@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+  - packages/nuxt-modules/*
+allowBuilds:
+  '@parcel/watcher': true
+  '@varlet/nuxt': true
+  esbuild: true
+  unrs-resolver: true
+  vue-demi: true

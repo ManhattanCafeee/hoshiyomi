@@ -1,0 +1,9 @@
+pnpm-lock.yaml
+**/pnpm-lock.yaml
+.nuxt
+.output
+dist
+node_modules
+packages/apisdk/lib/api/apiDefinitions.ts
+packages/apisdk/lib/api/globals.d.ts
+packages/apisdk/lib/api/createApis.ts

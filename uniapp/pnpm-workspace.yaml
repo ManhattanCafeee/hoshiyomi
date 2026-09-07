@@ -1,0 +1,14 @@
+# 单项目工作区:承载 pnpm 11 的项目级设置(项目 .npmrc 中的同名字段已被 pnpm 11 忽略)
+packages: []
+nodeLinker: hoisted
+overrides:
+  unconfig: 7.3.2
+allowBuilds:
+  '@parcel/watcher': true
+  '@uni-helper/unocss-preset-uni': true
+  bufferutil: true
+  core-js: true
+  esbuild: true
+  minidev: true
+  simple-git-hooks: true
+  vue-demi: true
