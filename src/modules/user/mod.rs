@@ -1,11 +1,18 @@
 pub mod handlers;
 pub mod models;
 pub mod repository;
+pub mod service;
 
-use axum::{routing::get, Router};
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::state::AppState;
 
-pub fn router() -> Router<AppState> {
-    Router::new().route("/users/{id}", get(handlers::get_user))
+pub fn router() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes![handlers::list])
+        .routes(routes![handlers::create])
+        .routes(routes![handlers::get])
+        .routes(routes![handlers::update_username])
+        .routes(routes![handlers::change_password])
+        .routes(routes![handlers::delete])
 }

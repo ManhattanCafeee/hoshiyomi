@@ -2,6 +2,7 @@
 name = "hoshiyomi"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [dependencies]
 # Web 框架与异步运行时
@@ -18,8 +19,42 @@ dotenvy = "0.15"
 
 # 日志与跟踪 (推荐)
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "ansi", "json"] }
+
+# 认证与安全
+argon2 = "0.5"
+password-hash = { version = "0.5", features = ["rand_core", "getrandom"] }
+jsonwebtoken = "9"
+uuid = { version = "1", features = ["v4", "serde"] }
+axum-extra = { version = "0.12", features = ["cookie"] }
+cookie = "0.18"
+
+# 校验
+validator = { version = "0.20", features = ["derive"] }
+
+# 中间件
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+# 配置
+config = { version = "0.15", features = ["toml"] }
+dirs = "6"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+inquire = "0.9"
+
+# 工具库
+strum = { version = "0.28", features = ["derive"] }
+thiserror = "2"
+derive_more = { version = "2", features = ["full"] }
+
+# OpenAPI 文档
+utoipa = { version = "5", features = ["axum_extras"] }
+utoipa-axum = "0.2"
+utoipa-scalar = { version = "0.3", features = ["axum"] }
+utoipa-swagger-ui = { version = "9", features = ["axum"] }
 
 [dev-dependencies]
-tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"

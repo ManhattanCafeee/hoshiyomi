@@ -1,15 +1,28 @@
+pub mod auth;
+pub mod role;
 pub mod user;
 
-use axum::{routing::get, Json, Router};
+use axum::Json;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{common::response::ApiResponse, state::AppState};
 
-pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/health", get(health))
+/// /api/v1 下的所有路由(OpenAPI 路径前缀由 build_app 嵌套补全)
+pub fn router() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes![health])
         .merge(user::router())
+        .merge(auth::router())
 }
 
-async fn health() -> Json<ApiResponse<&'static str>> {
-    Json(ApiResponse::success("ok"))
+#[utoipa::path(
+    get,
+    path = "/health",
+    tag = "health",
+    responses(
+        (status = 200, description = "健康检查", body = ApiResponse<String>),
+    ),
+)]
+async fn health() -> Json<ApiResponse<String>> {
+    Json(ApiResponse::success("ok".to_string()))
 }
