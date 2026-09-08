@@ -35,22 +35,30 @@ pub async fn refresh_session_cookie(
         return response;
     };
     // 会话不存在(未登录/已过期被提取器删除)时直接放行
-    let Ok(Some(session)) = state.srv().session.find(&session_id).await else {
-        return response;
+    let session = match state.srv().session.find(&session_id).await {
+        Ok(Some(session)) => session,
+        Ok(None) => return response,
+        Err(e) => {
+            tracing::error!(error = %e, "会话查询失败,跳过滑动续期");
+            return response;
+        }
     };
     if !state.srv().session.should_extend(&session) {
         return response;
     }
-    if let Ok(expires_at) = state.srv().session.extend(&session_id).await {
-        let remaining = (expires_at - chrono::Utc::now()).num_seconds().max(0);
-        let mut cookie = Cookie::new(cookie_name, session_id);
-        cookie.set_path("/");
-        cookie.set_http_only(true);
-        cookie.set_same_site(SameSite::Lax);
-        cookie.set_max_age(Some(Duration::seconds(remaining)));
-        if let Ok(value) = axum::http::HeaderValue::from_str(&cookie.encoded().to_string()) {
-            response.headers_mut().append(header::SET_COOKIE, value);
+    match state.srv().session.extend(&session_id).await {
+        Ok(expires_at) => {
+            let remaining = (expires_at - chrono::Utc::now()).num_seconds().max(0);
+            let mut cookie = Cookie::new(cookie_name, session_id);
+            cookie.set_path("/");
+            cookie.set_http_only(true);
+            cookie.set_same_site(SameSite::Lax);
+            cookie.set_max_age(Some(Duration::seconds(remaining)));
+            if let Ok(value) = axum::http::HeaderValue::from_str(&cookie.encoded().to_string()) {
+                response.headers_mut().append(header::SET_COOKIE, value);
+            }
         }
+        Err(e) => tracing::error!(error = %e, "会话续期失败"),
     }
 
     response

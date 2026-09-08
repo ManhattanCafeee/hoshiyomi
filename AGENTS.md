@@ -216,7 +216,7 @@ docker compose up -d       # root: MySQL 8.4 :3306 (hoshiyomi/password, db hoshi
 | `backend/migrations/*.sql` | Schema, format `{YYYYMMDDHHMMSS}_{description}.sql` |
 | `backend/tests/api.rs` | Integration tests |
 | `backend/.env.example` | Documented env template (defaults live in `src/config/schema.rs`) |
-| `frontend/apps/admin/nuxt.config.ts` | SPA config, modules, `/api/v1` + `/api-docs` dev proxy, apiBase |
+| `frontend/apps/admin/nuxt.config.ts` | SPA config, modules, `/api/v1` + `/api-docs` dev proxy, apiBase, **explicit `vite.server.fs.allow` for the workspace root** (monorepo module sources) |
 | `frontend/alova.config.ts` | wormhole codegen config (no defaults/to plugins — see below) |
 | `frontend/packages/apisdk/lib/api/index.ts` | Hand-written alovaInstance: envelope unwrap (`code === 0` number), no refresh, event system |
 | `frontend/packages/apisdk/stores/authState.ts` | `useAuthState` — memory-only `{user, permissions}` |

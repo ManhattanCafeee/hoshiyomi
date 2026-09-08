@@ -22,12 +22,15 @@ pub async fn connect(database_url: &str) -> Result<MySqlPool> {
         })
         .connect_with(connect_options)
         .await
-        .err_kind_msg(ErrorKind::Internal, "数据库连接失败")
+        .map_err(|e| {
+            tracing::error!(error = %e, "数据库连接失败");
+            ErrorKind::Internal.err_msg(e, "数据库连接失败")
+        })
 }
 
 pub async fn migrate(pool: &MySqlPool) -> Result<()> {
-    sqlx::migrate!("./migrations")
-        .run(pool)
-        .await
-        .err_kind_msg(ErrorKind::Internal, "数据库迁移失败")
+    sqlx::migrate!("./migrations").run(pool).await.map_err(|e| {
+        tracing::error!(error = %e, "数据库迁移失败");
+        ErrorKind::Internal.err_msg(e, "数据库迁移失败")
+    })
 }

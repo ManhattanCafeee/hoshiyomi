@@ -248,6 +248,9 @@ pub fn map_duplicate_key(e: AppError, msg: impl Into<String>) -> AppError {
         .and_then(|d| d.code())
         .is_some_and(|code| code == "1062");
     if is_dup {
+        if let Some(src) = e.source_ref() {
+            tracing::warn!(error = %src, "唯一键冲突(MySQL 1062),转为资源冲突响应");
+        }
         ErrorKind::AlreadyExists.msg(msg)
     } else {
         e

@@ -14,7 +14,10 @@ pub use error::{AppError, ErrorKind, Result};
 
 use axum::{Json, Router, http::StatusCode};
 use tower::ServiceBuilder;
-use tower_http::trace::TraceLayer;
+use tower_http::trace::{
+    DefaultMakeSpan, DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer,
+};
+use tracing::Level;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_scalar::{Scalar, Servable};
 use utoipa_swagger_ui::SwaggerUi;
@@ -38,7 +41,13 @@ pub fn build_app(state: AppState) -> Router {
         ))
         .layer(
             ServiceBuilder::new()
-                .layer(TraceLayer::new_for_http())
+                .layer(
+                    TraceLayer::new_for_http()
+                        .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+                        .on_request(DefaultOnRequest::new().level(Level::INFO))
+                        .on_response(DefaultOnResponse::new().level(Level::INFO))
+                        .on_failure(DefaultOnFailure::new().level(Level::ERROR)),
+                )
                 .layer(middleware::cors::cors()),
         )
         .with_state(state)

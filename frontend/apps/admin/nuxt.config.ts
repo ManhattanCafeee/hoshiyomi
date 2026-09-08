@@ -1,3 +1,10 @@
+import { fileURLToPath } from 'node:url'
+
+// 工作区根(frontend/):workspace 包(packages/*)与工作区 node_modules 都在应用目录之外,
+// Vite 的 fs.allow 自动探测依赖启动 cwd 与符号链接解析,显式放行避免
+// "outside of Vite serving allow list" 错误。
+const workspaceRoot = fileURLToPath(new URL('../..', import.meta.url))
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   srcDir: 'app/',
@@ -59,6 +66,9 @@ export default defineNuxtConfig({
       dedupe: ['alova'],
     },
     server: {
+      fs: {
+        allow: [workspaceRoot, `${workspaceRoot}/node_modules`],
+      },
       proxy: {
         '/api/v1': {
           target: 'http://127.0.0.1:8080',
