@@ -180,14 +180,14 @@ src/
 ├── pagination.rs      # PageData(u64 分页载荷;信封与校验提取器由库提供)
 ├── middleware/        # CORS
 └── modules/
-    ├── auth/          # 注册/登录/会话/JWT/刷新令牌(extractor/handlers/models/service/stores)
-    ├── user/          # 用户 CRUD
-    └── role/          # 角色与权限(仅 CLI 管理,无 HTTP 接口)
+    ├── auth/          # 注册/登录/会话/JWT/刷新令牌(dto/extractor/handlers/models/service/stores)
+    ├── user/          # 用户 CRUD(dto/handlers/models/service)
+    └── role/          # 角色与权限(models/repository/service;仅 CLI 管理,无 HTTP 接口)
 migrations/            # SQL 迁移(内嵌、启动时执行)
 tests/                 # 集成测试
 ```
 
-每个领域模块:`handlers.rs`(HTTP + utoipa)→ `service.rs`(业务逻辑,直接调用库的 `create`/`find_by_id`/`Query`/`Update`/`delete`,不再有 repository 层)→ `models.rs`(DTO 与 `#[derive(vivarium_rs::Entity)]` 行模型)。仅 `role/service.rs` 保留两条原生 SQL(`user_roles × roles` JOIN 与 `user_roles` INSERT)。
+每个领域模块:`handlers.rs`(HTTP + utoipa)→ `service.rs`(业务逻辑,直接调用库的 `create`/`find_by_id`/`Query`/`Update`/`delete`;SQL 收敛在 `repository.rs`/`stores.rs` 适配层)→ `dto.rs`(对外 DTO:`*Req`/`*Resp` 与提取器载荷)+ `models.rs`(`#[derive(vivarium_rs::Entity)]` 行模型与 `*Col` 列枚举;`auth` 为 JWT 载荷)。`role/repository.rs` 保留两条原生 SQL(`user_roles × roles` JOIN 与 `user_roles` INSERT),`auth/stores.rs` 实现库的会话/刷新令牌存储 trait;`role` 无 `dto.rs`(无 HTTP 接口)。
 
 ## 许可证
 

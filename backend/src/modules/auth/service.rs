@@ -1,5 +1,3 @@
-use sqlx::MySqlPool;
-
 use crate::modules::{
     role::{models::Perm, service::RoleService},
     user::{models::User, service::UserService},
@@ -20,12 +18,14 @@ impl AuthUser {
 
 #[derive(Debug, Clone)]
 pub struct AuthService {
-    pool: MySqlPool,
+    user: UserService,
+    role: RoleService,
 }
 
 impl AuthService {
-    pub fn new(pool: MySqlPool) -> Self {
-        Self { pool }
+    /// 依赖由 `Services` 注入(不再各调用点自建),与其他领域服务保持一致
+    pub fn new(user: UserService, role: RoleService) -> Self {
+        Self { user, role }
     }
 
     pub async fn authenticate(
@@ -33,10 +33,7 @@ impl AuthService {
         username: &str,
         password_str: &str,
     ) -> Result<Option<AuthUser>> {
-        let Some(user) = UserService::new(self.pool.clone())
-            .find_by_username(username)
-            .await?
-        else {
+        let Some(user) = self.user.find_by_username(username).await? else {
             // 用户不存在时也跑一次校验(库的 verify_login(None) 走内置 dummy 哈希),
             // 与「用户存在但密码错误」路径等时,防止按响应时间枚举用户名
             let _ = verify_login(password_str, None);
@@ -52,7 +49,8 @@ impl AuthService {
     }
 
     pub async fn get_auth_user(&self, user_id: u64) -> Result<AuthUser> {
-        let user = UserService::new(self.pool.clone())
+        let user = self
+            .user
             .find_by_id(user_id)
             .await?
             .ok_or_else(|| ApiError::not_found("用户不存在"))?;
@@ -61,9 +59,7 @@ impl AuthService {
     }
 
     pub async fn get_user_permissions(&self, user_id: u64) -> Result<Vec<Perm>> {
-        RoleService::new(self.pool.clone())
-            .get_user_permissions(user_id)
-            .await
+        self.role.get_user_permissions(user_id).await
     }
 
     /// 权限不足时由库的 `PermissionSet::require` 产出 403(文案取 catalog `forbidden`)

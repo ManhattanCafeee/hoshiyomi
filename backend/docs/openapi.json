@@ -587,6 +587,7 @@
           },
           "data": {
             "type": "object",
+            "description": "当前认证状态:用户信息与权限码",
             "required": [
               "user",
               "permissions"
@@ -635,6 +636,7 @@
           },
           "data": {
             "type": "object",
+            "description": "JWT 认证检查的响应体",
             "required": [
               "user_id",
               "username"
@@ -682,6 +684,7 @@
           },
           "data": {
             "type": "object",
+            "description": "JWT 登录响应:令牌对与当前认证状态",
             "required": [
               "access_token",
               "refresh_token",
@@ -731,6 +734,7 @@
           },
           "data": {
             "type": "object",
+            "description": "通用消息响应体",
             "required": [
               "message"
             ],
@@ -784,6 +788,7 @@
                 "type": "array",
                 "items": {
                   "type": "object",
+                  "description": "用户响应体(不含口令散列)",
                   "required": [
                     "id",
                     "username",
@@ -865,6 +870,7 @@
           },
           "data": {
             "type": "object",
+            "description": "刷新响应:轮换后的新令牌对",
             "required": [
               "access_token",
               "refresh_token"
@@ -943,6 +949,7 @@
           },
           "data": {
             "type": "object",
+            "description": "用户响应体(不含口令散列)",
             "required": [
               "id",
               "username",
@@ -989,6 +996,7 @@
       },
       "AuthStateResp": {
         "type": "object",
+        "description": "当前认证状态:用户信息与权限码",
         "required": [
           "user",
           "permissions"
@@ -1007,6 +1015,7 @@
       },
       "ChangePasswordReq": {
         "type": "object",
+        "description": "修改密码请求体",
         "required": [
           "old_password",
           "new_password"
@@ -1048,6 +1057,7 @@
       },
       "JwtEchoResp": {
         "type": "object",
+        "description": "JWT 认证检查的响应体",
         "required": [
           "user_id",
           "username"
@@ -1065,6 +1075,7 @@
       },
       "LoginReq": {
         "type": "object",
+        "description": "会话登录请求体",
         "required": [
           "username",
           "password"
@@ -1080,6 +1091,7 @@
       },
       "LoginResp": {
         "type": "object",
+        "description": "JWT 登录响应:令牌对与当前认证状态",
         "required": [
           "access_token",
           "refresh_token",
@@ -1099,6 +1111,7 @@
       },
       "MessageResp": {
         "type": "object",
+        "description": "通用消息响应体",
         "required": [
           "message"
         ],
@@ -1125,6 +1138,7 @@
       },
       "RefreshReq": {
         "type": "object",
+        "description": "刷新令牌请求体",
         "required": [
           "refresh_token"
         ],
@@ -1136,6 +1150,7 @@
       },
       "RefreshResp": {
         "type": "object",
+        "description": "刷新响应:轮换后的新令牌对",
         "required": [
           "access_token",
           "refresh_token"
@@ -1151,6 +1166,7 @@
       },
       "RegisterReq": {
         "type": "object",
+        "description": "注册请求体",
         "required": [
           "username",
           "email",
@@ -1170,6 +1186,7 @@
       },
       "UpdateUsernameReq": {
         "type": "object",
+        "description": "修改用户名请求体",
         "required": [
           "username"
         ],
@@ -1181,6 +1198,7 @@
       },
       "UserResp": {
         "type": "object",
+        "description": "用户响应体(不含口令散列)",
         "required": [
           "id",
           "username",

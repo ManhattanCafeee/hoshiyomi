@@ -23,12 +23,12 @@ main.rs → cli::run → serve::serve → lib::build_app → modules::router
                                            ↓
                 AppState { config, db, services }  ← DI container
                                            ↓
-        modules/{user, role, auth}::{handlers → service (calls vivarium CRUD/Query/Update directly)}
+        modules/{user, role, auth}::{handlers → service → (vivarium CRUD/Query/Update | repository/stores)}
 ```
 
-- **Domain modules** (`user`, `auth`, `role`): `handlers.rs` (axum + utoipa, never touches SQL) → `service.rs` (business logic, concrete struct holding a `MySqlPool` clone; data access goes straight through `vivarium-rs`'s `create`/`find_by_id`/`delete`/`Query`/`Update`). `role` has models/service only, no HTTP handlers.
+- **Domain modules** (`user`, `auth`, `role`): `handlers.rs` (axum + utoipa, never touches SQL) → `service.rs` (business logic; data access goes straight through `vivarium-rs`'s `create`/`find_by_id`/`delete`/`Query`/`Update`) → `dto.rs` (`user`/`auth` only: the `*Req`/`*Resp`/extractor payloads) + `models.rs` (row model and `*Col` column enum, or the internal JWT claims for `auth`). Raw SQL is confined to a `repository.rs`/`stores.rs` adapter: `role/repository.rs` holds the two statements the library cannot express, `auth/stores.rs` implements the library's session/refresh-token traits. `role` has no HTTP handlers (CLI-only, hence no `dto.rs`).
 - **Dependency direction**: `auth` → `user`/`role`, never upward; `state.rs` is the only place all three domains are wired together. The error type is the library's `vivarium_rs::ApiError` (re-exported as `crate::{ApiError, ErrorKind, Result}` from `lib.rs`), imported everywhere.
-- **DI style**: no DI framework, no trait objects. One `AppState { config, db, services }` with accessors `cfg()/db()/srv()`; `Services` is `Clone` over `UserService`, `RoleService`, `AuthService`, the fixed `SessionAuth` layer, and an `Arc<ArcSwap<AuthRuntime>>` (JWT verifier + refresh-token manager) that config hot reload rebuilds. Constructed once by `AppState::new(cfg, pool)`; the CLI builds `Services` directly (no `AppState`) for DB commands.
+- **DI style**: no DI framework, no trait objects. One `AppState { config, db, services }` with accessors `cfg()/db()/srv()`; `Services` is `Clone` over `UserService`, `RoleService`, `AuthService`, the fixed `SessionAuth` layer, and an `Arc<ArcSwap<AuthRuntime>>` (JWT verifier + refresh-token manager) that config hot reload rebuilds. `Services::new` is the single wiring point and **injects** `UserService`/`RoleService` into `AuthService`, so services never build each other per call. Constructed once by `AppState::new(cfg, pool)`; the CLI builds `Services` directly (no `AppState`) for DB commands.
 
 Request lifecycle:
 
@@ -81,7 +81,7 @@ Page → Apis.auth.Auth__jwtLogin({ data }) (no .send(); alova method is thenabl
 | `backend/src/` | Library root; `build_app` router assembly |
 | `backend/src/config/` | Layered config (`mod.rs` wrapper over `vivarium-config`, `schema.rs` serde structs + defaults, `legacy.rs` flat-env provider, `paths.rs`, `meta.rs`) |
 | `backend/src/cli/` | clap CLI (`command.rs`), dispatch (`run.rs`), implementations (`command_impl.rs`) |
-|`backend/src/modules/{user,auth,role}/`|Domain modules: `models.rs` + `service.rs` everywhere; `user`/`auth` add `mod.rs` (router) + `handlers.rs`, `auth` also `extractor.rs` (`SessionCtx`/`JwtCtx`) and `stores.rs` (SQL session/refresh-token stores); `role` has **no HTTP surface** (CLI-only)|
+|`backend/src/modules/{user,auth,role}/`|Domain modules: `service.rs` + `models.rs` everywhere (`models.rs` = row model/`*Col`, or `HsClaims` for `auth`); `user`/`auth` add `mod.rs` (router) + `handlers.rs` + `dto.rs`, `auth` also `extractor.rs` (`SessionCtx`/`JwtCtx`) and `stores.rs` (SQL session/refresh-token stores); `role` adds `repository.rs` (its two raw statements) and has **no HTTP surface** (CLI-only, hence no `dto.rs`)|
 |`backend/src/pagination.rs`|App-side `PageData<T>` (u64 `total`/`page`/`per_page`) — the frozen wire type (`ApiResponse_PageData_UserResp`); the library's `Page<T>` stays internal|
 | `backend/src/middleware/` | `cors.rs` only — session handling lives in the library's `session_layer` |
 | `backend/examples/` | `dump_openapi.rs` — prints the OpenAPI JSON (no DB needed) |
@@ -164,13 +164,13 @@ docker compose up -d       # root: MySQL 8.4 :3306 (hoshiyomi/password, db hoshi
 ### Backend — async & DB
 
 - sqlx queries are runtime-checked raw string literals (`sqlx::query`/`query_as::<_, Row>` with `?` binds) — **not** compile-time `query!` macros (no build-time DATABASE_URL requirement). Keep it that way.
-- Data access: services call the library's `create`/`find_by_id`/`delete`/`Query`/`Update` with `&pool` (row-returning calls additionally need `T: sqlx::FromRow + Send + Unpin`; `Query::paginate` needs a `Copy` executor, so pass `&pool`). Entities carry `#[derive(vivarium_rs::Entity)]` + a `*Col` `Column` enum; `created_at`/`updated_at` are `#[entity(skip)]` so writes keep the DB defaults. The two statements the library cannot express — the `user_roles × roles` JOIN and the `user_roles` INSERT — stay as raw `sqlx::query*` inside `role/service.rs`.
+- Data access: services call the library's `create`/`find_by_id`/`delete`/`Query`/`Update` with `&pool` (row-returning calls additionally need `T: sqlx::FromRow + Send + Unpin`; `Query::paginate` needs a `Copy` executor, so pass `&pool`). Entities carry `#[derive(vivarium_rs::Entity)]` + a `*Col` `Column` enum; `created_at`/`updated_at` are `#[entity(skip)]` so writes keep the DB defaults. Two statements stay hand-written in `role/repository.rs` as free `async fn`s taking `&MySqlPool`: the `user_roles × roles` JOIN (the library's `Query<T>` is single-table only) and the single `user_roles` INSERT (one write site — not worth a dedicated entity/column enum); `auth/stores.rs` is the other SQL adapter (the library's session/refresh-token traits). Services never contain SQL.
 - DB pool: max 10 connections, `after_connect` pins session `time_zone = '+00:00'`; timestamp columns default to `UTC_TIMESTAMP()`, `Update::set_expr(…, Expr::Now)` renders `CURRENT_TIMESTAMP` (equal only because the session tz is pinned), Rust reads use `DateTime<Utc>`. Pin timezone correctness when touching queries.
 - Schema: utf8mb4/utf8mb4_unicode_ci; **no FOREIGN KEY constraints anywhere** — referential integrity is application-level.
 
 ### Backend — naming & organization
 
-- DTOs: `*Req` (requests, e.g. `RegisterReq`), `*Resp` (responses, e.g. `UserResp`), domain rows bare (`User`, `Role`); services `*Service`; auth contexts `*Ctx`.
+- DTOs live in `dto.rs` of the domains that have an HTTP surface (`user`, `auth`): `*Req` (requests, e.g. `RegisterReq`), `*Resp` (responses, e.g. `UserResp`), plus extractor payloads (`IdPath`, `PaginationReq`); row models are bare nouns (`User`, `Role`) in `models.rs`; services `*Service`; auth contexts `*Ctx`.
 - `User` (FromRow) is deliberately **not** `Serialize` — password never leaves the server; responses go through `UserResp` via `From<User>`.
 - Domain modules named singular nouns (`user`, `role`, `auth`); per-directory `mod.rs` with `pub mod` decls + re-exports.
 - Config keys kebab-case by default; the auth sections keep the library's explicit snake_case serde renames (`cookie_name`, `ttl_hours`, `expires_in_seconds`) because both `config.toml` and `HOSHIYOMI__AUTH__SESSION__COOKIE_NAME`-style env vars map through them.

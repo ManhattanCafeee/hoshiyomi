@@ -114,10 +114,12 @@ impl Clone for Services {
 impl Services {
     /// 按连接池与配置装配服务集合,并建立首个认证运行时快照
     pub fn new(pool: MySqlPool, raw: &RawAppConfig) -> Self {
+        let user = UserService::new(pool.clone());
+        let role = RoleService::new(pool.clone());
         Self {
-            user: UserService::new(pool.clone()),
-            role: RoleService::new(pool.clone()),
-            auth: AuthService::new(pool.clone()),
+            auth: AuthService::new(user.clone(), role.clone()),
+            user,
+            role,
             session: build_session(&pool, raw),
             runtime: Arc::new(ArcSwap::from_pointee(build_runtime(&pool, raw))),
             pool,

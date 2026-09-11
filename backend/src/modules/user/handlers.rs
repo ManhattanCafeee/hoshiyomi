@@ -2,7 +2,7 @@ use axum::{Json, extract::State, response::IntoResponse};
 
 use crate::{
     modules::{
-        auth::{extractor::SessionCtx, models::MessageResp},
+        auth::{dto::MessageResp, extractor::SessionCtx},
         role::models::Perm,
     },
     pagination::PageData,
@@ -10,7 +10,7 @@ use crate::{
 };
 use vivarium_rs::{ApiError, ApiResponse, PathVarser, QueryVarser, Varser};
 
-use super::models::{
+use super::dto::{
     ChangePasswordReq, CreateUserReq, IdPath, PaginationReq, UpdateUsernameReq, UserResp,
 };
 

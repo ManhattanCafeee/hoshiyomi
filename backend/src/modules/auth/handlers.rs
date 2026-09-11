@@ -1,17 +1,18 @@
 use axum::{Json, extract::State, http::header, response::IntoResponse};
 
 use crate::{
-    modules::{role::models::DefaultRole, user::models::UserResp},
+    modules::{role::models::DefaultRole, user::dto::UserResp},
     state::AppState,
 };
 use vivarium_rs::{ApiError, ApiResponse, ErrorKind, Varser};
 
 use super::{
-    extractor::{JwtCtx, SessionCtx},
-    models::{
-        AuthStateResp, HsClaims, JwtEchoResp, LoginReq, LoginResp, MessageResp, RefreshReq,
-        RefreshResp, RegisterReq,
+    dto::{
+        AuthStateResp, JwtEchoResp, LoginReq, LoginResp, MessageResp, RefreshReq, RefreshResp,
+        RegisterReq,
     },
+    extractor::{JwtCtx, SessionCtx},
+    models::HsClaims,
 };
 
 #[utoipa::path(

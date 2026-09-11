@@ -120,6 +120,9 @@ export interface ApiResponse_JwtEchoResp {
    * 0 表示成功,否则为失败的 HTTP 状态码
    */
   code: number;
+  /**
+   * JWT 认证检查的响应体
+   */
   data?: {
     user_id: number;
     username: string;
@@ -135,6 +138,9 @@ export interface ApiResponse_MessageResp {
    * 0 表示成功,否则为失败的 HTTP 状态码
    */
   code: number;
+  /**
+   * 通用消息响应体
+   */
   data?: {
     message: string;
   };
@@ -158,8 +164,14 @@ export interface ApiResponse_AuthStateResp {
    * 0 表示成功,否则为失败的 HTTP 状态码
    */
   code: number;
+  /**
+   * 当前认证状态:用户信息与权限码
+   */
   data?: {
     permissions: Perm[];
+    /**
+     * 用户响应体(不含口令散列)
+     */
     user: UserResp;
   };
   errors?: null | ValidationErrors;
@@ -185,6 +197,9 @@ export interface ApiResponse_UserResp {
    * 0 表示成功,否则为失败的 HTTP 状态码
    */
   code: number;
+  /**
+   * 用户响应体(不含口令散列)
+   */
   data?: {
     created_at: string;
     email: string;
@@ -207,6 +222,9 @@ export interface UpdateUsernameReq {
 }
 export interface AuthStateResp {
   permissions: Perm[];
+  /**
+   * 用户响应体(不含口令散列)
+   */
   user: UserResp;
 }
 export interface ApiResponse_LoginResp {
@@ -214,9 +232,15 @@ export interface ApiResponse_LoginResp {
    * 0 表示成功,否则为失败的 HTTP 状态码
    */
   code: number;
+  /**
+   * JWT 登录响应:令牌对与当前认证状态
+   */
   data?: {
     access_token: string;
     refresh_token: string;
+    /**
+     * 当前认证状态:用户信息与权限码
+     */
     state: AuthStateResp;
   };
   errors?: null | ValidationErrors;
@@ -230,6 +254,9 @@ export interface ApiResponse_RefreshResp {
    * 0 表示成功,否则为失败的 HTTP 状态码
    */
   code: number;
+  /**
+   * 刷新响应:轮换后的新令牌对
+   */
   data?: {
     access_token: string;
     refresh_token: string;
@@ -295,6 +322,7 @@ declare global {
        * type Response = {
        *   // 0 表示成功,否则为失败的 HTTP 状态码
        *   code: number
+       *   // JWT 认证检查的响应体
        *   data?: {
        *     user_id: number
        *     username: string
@@ -345,9 +373,11 @@ declare global {
        * type Response = {
        *   // 0 表示成功,否则为失败的 HTTP 状态码
        *   code: number
+       *   // JWT 登录响应:令牌对与当前认证状态
        *   data?: {
        *     access_token: string
        *     refresh_token: string
+       *     // 当前认证状态:用户信息与权限码
        *     state: {
        *       // [items] start
        *       // 权限点:serde 与 strum 序列化码必须一致(见 tests::test_permissions_consistency)
@@ -363,6 +393,7 @@ declare global {
        *         | 'role:delete'
        *         | 'role:*'
        *       )[]
+       *       // 用户响应体(不含口令散列)
        *       user: {
        *         created_at: string
        *         email: string
@@ -412,6 +443,7 @@ declare global {
        * type Response = {
        *   // 0 表示成功,否则为失败的 HTTP 状态码
        *   code: number
+       *   // 通用消息响应体
        *   data?: {
        *     message: string
        *   }
@@ -451,6 +483,7 @@ declare global {
        * type Response = {
        *   // 0 表示成功,否则为失败的 HTTP 状态码
        *   code: number
+       *   // 当前认证状态:用户信息与权限码
        *   data?: {
        *     // [items] start
        *     // 权限点:serde 与 strum 序列化码必须一致(见 tests::test_permissions_consistency)
@@ -466,6 +499,7 @@ declare global {
        *       | 'role:delete'
        *       | 'role:*'
        *     )[]
+       *     // 用户响应体(不含口令散列)
        *     user: {
        *       created_at: string
        *       email: string
@@ -519,6 +553,7 @@ declare global {
        * type Response = {
        *   // 0 表示成功,否则为失败的 HTTP 状态码
        *   code: number
+       *   // 刷新响应:轮换后的新令牌对
        *   data?: {
        *     access_token: string
        *     refresh_token: string
@@ -573,6 +608,7 @@ declare global {
        * type Response = {
        *   // 0 表示成功,否则为失败的 HTTP 状态码
        *   code: number
+       *   // 当前认证状态:用户信息与权限码
        *   data?: {
        *     // [items] start
        *     // 权限点:serde 与 strum 序列化码必须一致(见 tests::test_permissions_consistency)
@@ -588,6 +624,7 @@ declare global {
        *       | 'role:delete'
        *       | 'role:*'
        *     )[]
+       *     // 用户响应体(不含口令散列)
        *     user: {
        *       created_at: string
        *       email: string
@@ -636,6 +673,7 @@ declare global {
        * type Response = {
        *   // 0 表示成功,否则为失败的 HTTP 状态码
        *   code: number
+       *   // 通用消息响应体
        *   data?: {
        *     message: string
        *   }
@@ -675,6 +713,7 @@ declare global {
        * type Response = {
        *   // 0 表示成功,否则为失败的 HTTP 状态码
        *   code: number
+       *   // 当前认证状态:用户信息与权限码
        *   data?: {
        *     // [items] start
        *     // 权限点:serde 与 strum 序列化码必须一致(见 tests::test_permissions_consistency)
@@ -690,6 +729,7 @@ declare global {
        *       | 'role:delete'
        *       | 'role:*'
        *     )[]
+       *     // 用户响应体(不含口令散列)
        *     user: {
        *       created_at: string
        *       email: string
@@ -745,6 +785,7 @@ declare global {
        * type Response = {
        *   // 0 表示成功,否则为失败的 HTTP 状态码
        *   code: number
+       *   // 用户响应体(不含口令散列)
        *   data?: {
        *     created_at: string
        *     email: string
@@ -849,6 +890,7 @@ declare global {
        *   data?: {
        *     // 本页数据
        *     // [items] start
+       *     // 用户响应体(不含口令散列)
        *     // [items] end
        *     items: Array<{
        *       created_at: string
@@ -913,6 +955,7 @@ declare global {
        * type Response = {
        *   // 0 表示成功,否则为失败的 HTTP 状态码
        *   code: number
+       *   // 用户响应体(不含口令散列)
        *   data?: {
        *     created_at: string
        *     email: string
@@ -966,6 +1009,7 @@ declare global {
        * type Response = {
        *   // 0 表示成功,否则为失败的 HTTP 状态码
        *   code: number
+       *   // 用户响应体(不含口令散列)
        *   data?: {
        *     created_at: string
        *     email: string
@@ -1028,6 +1072,7 @@ declare global {
        * type Response = {
        *   // 0 表示成功,否则为失败的 HTTP 状态码
        *   code: number
+       *   // 通用消息响应体
        *   data?: {
        *     message: string
        *   }
@@ -1096,6 +1141,7 @@ declare global {
        * type Response = {
        *   // 0 表示成功,否则为失败的 HTTP 状态码
        *   code: number
+       *   // 通用消息响应体
        *   data?: {
        *     message: string
        *   }
@@ -1164,6 +1210,7 @@ declare global {
        * type Response = {
        *   // 0 表示成功,否则为失败的 HTTP 状态码
        *   code: number
+       *   // 用户响应体(不含口令散列)
        *   data?: {
        *     created_at: string
        *     email: string

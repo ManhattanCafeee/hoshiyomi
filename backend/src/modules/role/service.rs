@@ -3,6 +3,7 @@ use sqlx::MySqlPool;
 use vivarium_rs::{ApiError, ErrorKind, Order, Query, Result, Sorter, create, delete, find_by_id};
 
 use super::models::{Perm, Role, RoleCol};
+use super::repository;
 
 #[derive(Debug, Clone)]
 pub struct RoleService {
@@ -70,51 +71,20 @@ impl RoleService {
     }
 
     pub async fn assign_to_user(&self, user_id: u64, role_id: u64) -> Result<()> {
-        let existing = self.find_roles_by_user(user_id).await?;
+        let existing = repository::find_roles_by_user(&self.pool, user_id).await?;
         if existing.iter().any(|r| r.id == role_id) {
             return Err(ApiError::conflict("角色已分配给该用户"));
         }
-        insert_user_role(&self.pool, user_id, role_id)
+        repository::insert_user_role(&self.pool, user_id, role_id)
             .await
             .map_err(|e| ApiError::conflict_from_db(e, "角色已分配给该用户"))
     }
 
     pub async fn get_user_permissions(&self, user_id: u64) -> Result<Vec<Perm>> {
-        let roles = self.find_roles_by_user(user_id).await?;
+        let roles = repository::find_roles_by_user(&self.pool, user_id).await?;
         let mut perms: Vec<Perm> = roles.iter().flat_map(Role::parse_perms).collect();
         perms.sort();
         perms.dedup();
         Ok(perms)
     }
-
-    /// user_roles × roles 的 JOIN:库的 Query 只能 `FROM` 单表,无 JOIN 表达能力,故保留原生 sqlx。
-    async fn find_roles_by_user(&self, user_id: u64) -> Result<Vec<Role>> {
-        sqlx::query_as::<_, Role>(
-            "SELECT r.id, r.name, r.description, r.permissions, r.created_at, r.updated_at
-             FROM user_roles ur
-             JOIN roles r ON ur.role_id = r.id
-             WHERE ur.user_id = ?
-             ORDER BY r.id",
-        )
-        .bind(user_id)
-        .fetch_all(&self.pool)
-        .await
-        .map_err(ApiError::from)
-    }
-}
-
-/// user_roles 全库仅此一条写入,不值得为它新建实体与 Column 枚举,保留原生 sqlx。
-///
-/// 返回原始 `sqlx::Error`:调用方要据此识别唯一键冲突(1062)并换成本接口文案。
-async fn insert_user_role(
-    pool: &MySqlPool,
-    user_id: u64,
-    role_id: u64,
-) -> std::result::Result<(), sqlx::Error> {
-    sqlx::query("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)")
-        .bind(user_id)
-        .bind(role_id)
-        .execute(pool)
-        .await
-        .map(|_| ())
 }
