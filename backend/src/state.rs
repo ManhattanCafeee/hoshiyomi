@@ -19,14 +19,19 @@ use crate::{
     },
 };
 
-#[derive(Clone)]
+/// 应用状态:随请求注入 handler 的依赖容器
+#[derive(Debug, Clone)]
 pub struct AppState {
+    /// 配置句柄:热重载后经它读到最新快照
     pub config: AppConfig,
+    /// MySQL 连接池
     pub db: MySqlPool,
+    /// 领域服务集合
     pub services: Services,
 }
 
 impl AppState {
+    /// 按配置与连接池装配全部依赖
     pub fn new(config: AppConfig, db: MySqlPool) -> Self {
         let services = Services::new(db.clone(), &config.get());
         Self {
@@ -36,14 +41,17 @@ impl AppState {
         }
     }
 
+    /// 配置句柄
     pub fn cfg(&self) -> &AppConfig {
         &self.config
     }
 
+    /// MySQL 连接池
     pub fn db(&self) -> &MySqlPool {
         &self.db
     }
 
+    /// 领域服务集合
     pub fn srv(&self) -> &Services {
         &self.services
     }
@@ -58,14 +66,31 @@ impl AppState {
 /// 作为 layer state 捕获,配置变更无法影响它,故 `auth.session.*` 属于「需重启生效」。
 #[derive(Clone)]
 pub struct AuthRuntime {
+    /// JWT 校验器:密钥取自 `auth.jwt.secret`
     pub jwt: JwtVerifier,
+    /// 刷新令牌管理器:签发、轮换与吊销
     pub tokens: RefreshTokenManager<MySqlRefreshTokenStore>,
 }
 
+impl std::fmt::Debug for AuthRuntime {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // 库的 JwtVerifier/KeyRing 是 derive 的 Debug(会打印签名密钥),此处显式脱敏;
+        // RefreshTokenManager 自带 `<redacted>` 的 Debug,可直接打印。
+        f.debug_struct("AuthRuntime")
+            .field("jwt", &"<redacted>")
+            .field("tokens", &self.tokens)
+            .finish()
+    }
+}
+
 /// 领域服务依赖注入容器
+#[derive(Debug)]
 pub struct Services {
+    /// 用户服务:增删改查、改名与改密
     pub user: UserService,
+    /// 角色服务:角色维护、分配与权限查询
     pub role: RoleService,
+    /// 认证服务:口令校验、鉴权与权限判定
     pub auth: AuthService,
     /// 会话层:构造后固定(见 `AuthRuntime` 的说明)
     session: SessionAuth<MySqlSessionStore>,
@@ -87,6 +112,7 @@ impl Clone for Services {
 }
 
 impl Services {
+    /// 按连接池与配置装配服务集合,并建立首个认证运行时快照
     pub fn new(pool: MySqlPool, raw: &RawAppConfig) -> Self {
         Self {
             user: UserService::new(pool.clone()),

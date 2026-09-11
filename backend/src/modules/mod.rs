@@ -5,10 +5,11 @@ pub mod user;
 use axum::Json;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{common::response::ApiResponse, state::AppState};
+use crate::state::AppState;
+use vivarium_rs::ApiResponse;
 
 /// /api/v1 下的所有路由(OpenAPI 路径前缀由 build_app 嵌套补全)
-pub fn router() -> OpenApiRouter<AppState> {
+pub(crate) fn router() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes![health])
         .merge(user::router())

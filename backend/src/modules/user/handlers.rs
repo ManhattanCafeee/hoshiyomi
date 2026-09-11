@@ -1,14 +1,14 @@
 use axum::{Json, extract::State, response::IntoResponse};
 
 use crate::{
-    common::response::{ApiResponse, PageData},
     modules::{
         auth::{extractor::SessionCtx, models::MessageResp},
         role::models::Perm,
     },
+    pagination::PageData,
     state::AppState,
 };
-use vivarium_rs::{ApiError, PathVarser, QueryVarser, Varser};
+use vivarium_rs::{ApiError, ApiResponse, PathVarser, QueryVarser, Varser};
 
 use super::models::{
     ChangePasswordReq, CreateUserReq, IdPath, PaginationReq, UpdateUsernameReq, UserResp,

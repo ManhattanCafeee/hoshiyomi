@@ -3,3 +3,16 @@
 members = ["backend"]
 default-members = ["backend"]
 resolver = "3"
+
+# 全仓统一的 lint 策略:成员用 `[lints] workspace = true` 接入。
+# 源码零 unsafe,故直接 forbid;clippy 默认组全 deny,由门禁的 `cargo clippy` 守住。
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+# 从 pedantic 中挑选、且当前代码已满足的三条(见 AGENTS.md 的 lint 策略)
+uninlined_format_args = "warn"
+redundant_closure_for_method_calls = "warn"
+unused_async = "warn"

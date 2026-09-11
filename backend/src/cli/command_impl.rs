@@ -5,6 +5,7 @@ use crate::{
 };
 use vivarium_rs::{ApiError, ErrorKind, Result};
 
+/// 幂等初始化内置角色:逐个创建 DefaultRole,已存在的角色跳过
 pub async fn init_rbac(services: &Services) -> Result<()> {
     println!("Initializing roles...");
 
@@ -29,6 +30,7 @@ pub async fn init_rbac(services: &Services) -> Result<()> {
     Ok(())
 }
 
+/// 创建超级用户并分配 superuser 角色,缺省参数时交互式提示输入
 pub async fn create_superuser(
     services: &Services,
     username: Option<String>,
@@ -54,7 +56,7 @@ pub async fn create_superuser(
             .map_err(|e| ApiError::new(ErrorKind::Internal, "交互输入失败").with_source(e))?,
     };
 
-    println!("创建超级用户: {}", username);
+    println!("创建超级用户: {username}");
     let user = services
         .user
         .create(username.clone(), email, password)
@@ -71,10 +73,11 @@ pub async fn create_superuser(
         .await?;
     println!("  已分配 superuser 角色");
 
-    println!("\n超级用户 '{}' 创建成功!", username);
+    println!("\n超级用户 '{username}' 创建成功!");
     Ok(())
 }
 
+/// 打印全部角色及其名称、描述与权限码
 pub async fn list_roles(services: &Services) -> Result<()> {
     let roles = services.role.list_all().await?;
 
@@ -92,6 +95,7 @@ pub async fn list_roles(services: &Services) -> Result<()> {
     Ok(())
 }
 
+/// 按逗号分隔的权限码创建角色,无法识别的权限码忽略
 pub async fn create_role(
     services: &Services,
     name: String,
@@ -113,17 +117,19 @@ pub async fn create_role(
     Ok(())
 }
 
+/// 按角色名删除角色,角色不存在时报 404
 pub async fn delete_role(services: &Services, name: String) -> Result<()> {
     let Some(role) = services.role.find_by_name(&name).await? else {
         return Err(ApiError::not_found("角色不存在"));
     };
 
     services.role.delete(role.id).await?;
-    println!("已删除角色: {}", name);
+    println!("已删除角色: {name}");
     Ok(())
 }
 
-pub async fn list_permissions() -> Result<()> {
+/// 打印全部可用权限及其权限码与说明
+pub fn list_permissions() -> Result<()> {
     println!("可用权限:");
     println!("{:-<40}", "");
     for perm in Perm::all() {
@@ -132,8 +138,9 @@ pub async fn list_permissions() -> Result<()> {
     Ok(())
 }
 
+/// 以 JSON 格式打印当前生效配置
 pub fn print_config(config: &RawAppConfig) -> Result<()> {
     let json = serde_json::to_string_pretty(config)?;
-    println!("{}", json);
+    println!("{json}");
     Ok(())
 }

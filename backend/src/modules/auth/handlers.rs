@@ -1,11 +1,10 @@
 use axum::{Json, extract::State, http::header, response::IntoResponse};
 
 use crate::{
-    common::response::ApiResponse,
     modules::{role::models::DefaultRole, user::models::UserResp},
     state::AppState,
 };
-use vivarium_rs::{ApiError, ErrorKind, Varser};
+use vivarium_rs::{ApiError, ApiResponse, ErrorKind, Varser};
 
 use super::{
     extractor::{JwtCtx, SessionCtx},

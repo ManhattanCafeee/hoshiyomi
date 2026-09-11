@@ -6,6 +6,7 @@ use crate::modules::{
 };
 use vivarium_rs::{ApiError, PermissionSet, Result, verify_login};
 
+#[derive(Debug)]
 pub struct AuthUser {
     pub user: User,
     pub permissions: Vec<Perm>,
@@ -68,6 +69,6 @@ impl AuthService {
     /// 权限不足时由库的 `PermissionSet::require` 产出 403(文案取 catalog `forbidden`)
     pub async fn require_permission(&self, user_id: u64, perm: Perm) -> Result<()> {
         let perms = self.get_user_permissions(user_id).await?;
-        PermissionSet::new(perms.iter().map(|p| p.code())).require(perm.code())
+        PermissionSet::new(perms.iter().map(Perm::code)).require(perm.code())
     }
 }

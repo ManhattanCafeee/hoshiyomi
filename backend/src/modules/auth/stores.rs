@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use sqlx::MySqlPool;
 use vivarium_rs::{ApiError, RefreshTokenRecord, RefreshTokenStore, SessionRecord, SessionStore};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MySqlSessionStore {
     pool: MySqlPool,
 }
@@ -105,7 +105,7 @@ impl SessionStore for MySqlSessionStore {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MySqlRefreshTokenStore {
     pool: MySqlPool,
 }

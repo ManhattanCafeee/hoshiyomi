@@ -1,3 +1,6 @@
+//! 黑盒集成测试:以进程内 `oneshot` 驱动 `build_app` 装配的路由;
+//! 连接池惰性指向不可达地址,故不依赖数据库与环境变量。
+
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use hoshiyomi::{

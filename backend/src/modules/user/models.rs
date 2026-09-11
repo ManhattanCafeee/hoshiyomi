@@ -6,7 +6,7 @@ use validator::Validate;
 ///
 /// 两个时间列标 `#[entity(skip)]`:它们由 DDL 的 `DEFAULT (UTC_TIMESTAMP())` 生成,
 /// 而库的 `create` 会写全部非 id、非 skip 列,不 skip 会用占位值覆盖默认值。
-#[derive(Debug, Clone, sqlx::FromRow, vivarium_rs::Entity)]
+#[derive(Clone, sqlx::FromRow, vivarium_rs::Entity)]
 #[entity(table = "users")]
 pub struct User {
     pub id: u64,
@@ -17,6 +17,20 @@ pub struct User {
     pub created_at: chrono::DateTime<chrono::Utc>,
     #[entity(skip)]
     pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl std::fmt::Debug for User {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // password 是口令散列,不得经 `{:?}` 进日志(库对 VerifyOutcome 也做同样的脱敏)
+        f.debug_struct("User")
+            .field("id", &self.id)
+            .field("username", &self.username)
+            .field("email", &self.email)
+            .field("password", &"<redacted>")
+            .field("created_at", &self.created_at)
+            .field("updated_at", &self.updated_at)
+            .finish()
+    }
 }
 
 /// users 表可寻址列(库的 Query/Update 需要显式列名)
@@ -127,3 +141,28 @@ impl vivarium_rs::Initializer for CreateUserReq {}
 impl vivarium_rs::Initializer for UpdateUsernameReq {}
 impl vivarium_rs::Initializer for ChangePasswordReq {}
 impl vivarium_rs::Initializer for PaginationReq {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `Debug` 不得打印口令散列。
+    #[test]
+    fn debug_redacts_password_hash() {
+        let user = User {
+            id: 1,
+            username: "alice".to_owned(),
+            email: "alice@example.com".to_owned(),
+            password: "$argon2id$v=19$m=19456,t=2,p=1$hash".to_owned(),
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+        let printed = format!("{user:?}");
+
+        assert!(printed.contains("alice"), "用户名应可打印: {printed}");
+        assert!(
+            !printed.contains("$argon2id$"),
+            "口令散列不应出现在 Debug 输出: {printed}"
+        );
+    }
+}

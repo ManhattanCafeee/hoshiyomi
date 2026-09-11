@@ -3,10 +3,7 @@ use axum::{
     http::{header, request::Parts},
 };
 
-use crate::{
-    modules::{auth::models::HsClaims, user::models::User},
-    state::{AppState, Services},
-};
+use crate::{modules::auth::models::HsClaims, state::AppState};
 use vivarium_rs::{ApiError, ErrorKind};
 
 /// 从请求提取的 JWT 认证上下文(Bearer token)
@@ -19,10 +16,6 @@ pub struct JwtCtx {
 impl JwtCtx {
     pub fn username(&self) -> &str {
         &self.username
-    }
-
-    pub async fn user(&self, services: &Services) -> Result<User, ApiError> {
-        services.user.get_by_id(self.user_id).await
     }
 }
 
@@ -61,12 +54,6 @@ impl FromRequestParts<AppState> for JwtCtx {
 #[derive(Debug)]
 pub struct SessionCtx {
     pub user_id: u64,
-}
-
-impl SessionCtx {
-    pub async fn user(&self, services: &Services) -> Result<User, ApiError> {
-        services.user.get_by_id(self.user_id).await
-    }
 }
 
 impl FromRequestParts<AppState> for SessionCtx {

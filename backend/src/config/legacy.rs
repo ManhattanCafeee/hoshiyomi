@@ -10,6 +10,7 @@ use figment::value::{Dict, Map, Value};
 use figment::{Metadata, Profile, Provider};
 use vivarium_rs::{ApiError, ErrorKind, Result};
 
+/// 9 个旧版平铺环境变量的解析结果(未设置的变量为 None)
 pub struct LegacyOverrides {
     database_url: Option<String>,
     host: Option<String>,
@@ -22,7 +23,25 @@ pub struct LegacyOverrides {
     session_ttl_hours: Option<u64>,
 }
 
+impl std::fmt::Debug for LegacyOverrides {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // 连接串与 JWT 密钥含敏感值,只标注是否设置
+        f.debug_struct("LegacyOverrides")
+            .field("database_url", &self.database_url.is_some())
+            .field("host", &self.host)
+            .field("port", &self.port)
+            .field("rust_log", &self.rust_log)
+            .field("log_level", &self.log_level)
+            .field("jwt_secret", &self.jwt_secret.is_some())
+            .field("jwt_expires_in_seconds", &self.jwt_expires_in_seconds)
+            .field("session_cookie_name", &self.session_cookie_name)
+            .field("session_ttl_hours", &self.session_ttl_hours)
+            .finish()
+    }
+}
+
 impl LegacyOverrides {
+    /// 从进程环境读取 9 个旧版变量,数字变量非法时返回中文错误
     pub fn from_env() -> Result<Self> {
         let var = |name: &str| env::var(name).ok();
 
@@ -68,7 +87,10 @@ impl LegacyOverrides {
     }
 }
 
+/// 把 `LegacyOverrides` 适配成 figment provider 的包装
+#[derive(Debug)]
 pub struct LegacyFlatEnv {
+    /// 已解析的旧版变量,作为最高优先级的最后一层 merge
     pub values: LegacyOverrides,
 }
 

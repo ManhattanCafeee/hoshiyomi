@@ -81,7 +81,7 @@ impl RoleService {
 
     pub async fn get_user_permissions(&self, user_id: u64) -> Result<Vec<Perm>> {
         let roles = self.find_roles_by_user(user_id).await?;
-        let mut perms: Vec<Perm> = roles.iter().flat_map(|r| r.parse_perms()).collect();
+        let mut perms: Vec<Perm> = roles.iter().flat_map(Role::parse_perms).collect();
         perms.sort();
         perms.dedup();
         Ok(perms)

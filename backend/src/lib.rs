@@ -1,12 +1,21 @@
+//! hoshiyomi 后端库:对外暴露 `build_app`(路由装配)与 `api_document`(OpenAPI spec),错误类型与响应信封统一由 `vivarium_rs` 提供
+//!
+//! 对外只开放 bin 与集成测试需要的部分:cli(bin 调用)、config/state(测试构造 AppState)
+
+/// 命令行接口:子命令定义与分发入口
 pub mod cli;
-pub mod common;
+/// 配置加载、字段树与热重载
 pub mod config;
-pub mod db;
-pub mod middleware;
-pub mod modules;
-pub mod serve;
+/// 应用状态与领域服务容器
 pub mod state;
-pub mod texts;
+
+// 其余模块仅库内使用,收为 crate 可见,避免无意义的公开面
+pub(crate) mod db;
+pub(crate) mod middleware;
+pub(crate) mod modules;
+pub(crate) mod pagination;
+pub(crate) mod serve;
+pub(crate) mod texts;
 
 pub use vivarium_rs::{ApiError, ErrorKind, Result};
 
@@ -39,6 +48,7 @@ fn set_info(api: &mut utoipa::openapi::OpenApi) {
     let _ = texts::localize_schema(api);
 }
 
+/// 装配完整应用路由:业务路由、OpenAPI 文档挂载、会话层与 CORS/Trace 中间件
 pub fn build_app(state: AppState) -> Router {
     // 任何库调用之前先装中文文案(测试直接调 build_app,故必须在这里装)
     texts::install_chinese_texts();

@@ -7,6 +7,7 @@ use super::{
 use crate::{config::AppConfig, db, state::Services, texts};
 use vivarium_rs::Result;
 
+/// CLI 入口:解析命令行参数并分发到对应子命令,未指定子命令时启动服务
 pub async fn run() -> Result<()> {
     // 库调用(含配置/DB 错误)之前先装中文文案
     texts::install_chinese_texts();
@@ -22,7 +23,7 @@ pub async fn run() -> Result<()> {
             let cfg = AppConfig::load()?;
             command_impl::print_config(&cfg.get())
         }
-        Some(Commands::Perms) => command_impl::list_permissions().await,
+        Some(Commands::Perms) => command_impl::list_permissions(),
         Some(cmd) => {
             let cfg = AppConfig::load()?;
             // CLI 不跑 migrate:命令假设 schema 已存在(由 serve 首次启动创建)

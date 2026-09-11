@@ -3,6 +3,13 @@ name = "hoshiyomi"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+# 有效 MSRV 由 sqlx 0.9 决定;resolver "3" 靠它做 MSRV-aware 依赖解析
+rust-version = "1.94"
+# 私有应用:不发布;同时使 description/repository/keywords 等元数据成为可选
+publish = false
+
+[lints]
+workspace = true
 
 [dependencies]
 # Web 框架与异步运行时

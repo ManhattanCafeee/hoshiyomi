@@ -1,6 +1,10 @@
+/// 旧版平铺环境变量的 figment 兼容层
 pub mod legacy;
+/// 项目元信息常量(名称与环境变量前缀)
 pub mod meta;
+/// 配置/数据/日志目录解析
 pub mod paths;
+/// 配置字段树:server/log/database/auth
 pub mod schema;
 
 use std::sync::Arc;
@@ -34,6 +38,7 @@ impl AppConfig {
         })
     }
 
+    /// 按「代码默认 → config.toml → HOSHIYOMI__* → 旧版平铺变量」分层加载
     pub fn load() -> Result<Self> {
         // 数字型 legacy 变量先解析:失败要报原有的中文文案,而不是 figment 的错误
         let legacy = LegacyOverrides::from_env()?;
@@ -61,6 +66,7 @@ impl AppConfig {
         Arc::clone(&self.inner).watch().map_err(config_error)
     }
 
+    /// 注册配置变更处理器,热重载成功后按新快照回调
     pub fn register<F>(&self, handler: F) -> HandlerId
     where
         F: Fn(&RawAppConfig) + Send + Sync + 'static,
@@ -68,6 +74,7 @@ impl AppConfig {
         self.inner.register(handler)
     }
 
+    /// 注册重载失败处理器,失败时保留旧值并上报
     pub fn on_error<F>(&self, handler: F) -> HandlerId
     where
         F: Fn(&ConfigError) + Send + Sync + 'static,
@@ -76,6 +83,35 @@ impl AppConfig {
     }
 }
 
+impl std::fmt::Debug for AppConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // 配置含 JWT 密钥等敏感值:只输出类型名与 `..`,不打印任何字段
+        f.debug_struct("AppConfig").finish_non_exhaustive()
+    }
+}
+
 fn config_error(err: ConfigError) -> ApiError {
     ApiError::new(ErrorKind::Internal, "配置错误").with_source(err)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `Debug` 不得泄露配置中的敏感值(连接串、JWT 密钥)。
+    #[test]
+    fn debug_redacts_sensitive_values() {
+        let config = AppConfig::new(RawAppConfig::default()).expect("配置构造失败");
+        let snapshot = config.get();
+        let printed = format!("{config:?}");
+
+        assert!(
+            !printed.contains(&snapshot.database.url),
+            "Debug 不应打印连接串: {printed}"
+        );
+        assert!(
+            !printed.contains(&snapshot.auth.jwt.secret),
+            "Debug 不应打印 JWT 密钥: {printed}"
+        );
+    }
 }

@@ -19,7 +19,7 @@
 
 | 层 | 选型 |
 | --- | --- |
-| 基础库 | vivarium-rs 0.3.1(错误信封 / 校验提取器 / CRUD / 认证 / 配置 / OpenAPI / telemetry) |
+| 基础库 | vivarium-rs 0.3.3(错误信封 / 校验提取器 / CRUD / 认证 / 配置 / OpenAPI / telemetry) |
 | Web 框架 / 运行时 | axum 0.8 · tokio |
 | 数据库 | MySQL · sqlx 0.9(迁移内嵌二进制,启动时自动执行) |
 | 认证安全 | Argon2 口令、HS256 JWT、会话与刷新令牌摘要存储(均由库提供) |
@@ -154,7 +154,7 @@ cargo run
 cargo build              # 构建
 cargo test               # 测试(无需数据库、无需环境变量)
 cargo fmt                # 格式化(纯默认配置)
-cargo clippy             # Clippy(纯默认配置)
+cargo clippy             # Clippy(lint 策略集中在根 Cargo.toml 的 [workspace.lints])
 cargo run --example dump_openapi > docs/openapi.json   # 导出 OpenAPI 规范(前端 SDK 代码生成源)
 ```
 
@@ -177,7 +177,7 @@ src/
 ├── db.rs              # 连接池(UTC 时区)与迁移执行
 ├── texts.rs           # 库文案的中文注入
 ├── state.rs           # AppState + Services 容器(含可热替换的 AuthRuntime)
-├── common/            # PageData(信封与校验提取器由库提供)
+├── pagination.rs      # PageData(u64 分页载荷;信封与校验提取器由库提供)
 ├── middleware/        # CORS
 └── modules/
     ├── auth/          # 注册/登录/会话/JWT/刷新令牌(extractor/handlers/models/service/stores)

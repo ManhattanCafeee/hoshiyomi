@@ -772,7 +772,7 @@
           },
           "data": {
             "type": "object",
-            "description": "分页数据载荷",
+            "description": "分页数据载荷(库的 `Page<T>` 映射而来)",
             "required": [
               "items",
               "total",
@@ -810,21 +810,25 @@
                       "type": "string"
                     }
                   }
-                }
+                },
+                "description": "本页数据"
               },
               "page": {
                 "type": "integer",
                 "format": "int64",
+                "description": "当前页码(回显请求值)",
                 "minimum": 0
               },
               "per_page": {
                 "type": "integer",
                 "format": "int64",
+                "description": "每页条数(回显请求值)",
                 "minimum": 0
               },
               "total": {
                 "type": "integer",
                 "format": "int64",
+                "description": "记录总数",
                 "minimum": 0
               }
             }

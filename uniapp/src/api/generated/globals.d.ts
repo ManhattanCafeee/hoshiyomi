@@ -246,9 +246,12 @@ export interface ApiResponse_PageData_UserResp {
    */
   code: number;
   /**
-   * 分页数据载荷
+   * 分页数据载荷(库的 `Page<T>` 映射而来)
    */
   data?: {
+    /**
+     * 本页数据
+     */
     items: Array<{
       created_at: string;
       email: string;
@@ -256,8 +259,17 @@ export interface ApiResponse_PageData_UserResp {
       updated_at: string;
       username: string;
     }>;
+    /**
+     * 当前页码(回显请求值)
+     */
     page: number;
+    /**
+     * 每页条数(回显请求值)
+     */
     per_page: number;
+    /**
+     * 记录总数
+     */
     total: number;
   };
   errors?: null | ValidationErrors;
@@ -833,8 +845,9 @@ declare global {
        * type Response = {
        *   // 0 表示成功,否则为失败的 HTTP 状态码
        *   code: number
-       *   // 分页数据载荷
+       *   // 分页数据载荷(库的 `Page<T>` 映射而来)
        *   data?: {
+       *     // 本页数据
        *     // [items] start
        *     // [items] end
        *     items: Array<{
@@ -844,8 +857,11 @@ declare global {
        *       updated_at: string
        *       username: string
        *     }>
+       *     // 当前页码(回显请求值)
        *     page: number
+       *     // 每页条数(回显请求值)
        *     per_page: number
+       *     // 记录总数
        *     total: number
        *   }
        *   // [params2] start

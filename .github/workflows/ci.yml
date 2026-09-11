@@ -1,0 +1,86 @@
+name: CI
+
+on: [push, pull_request]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  backend:
+    name: 后端(fmt / clippy / test / spec 一致性)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      # lint 策略集中在根 Cargo.toml 的 [workspace.lints],clippy 无需额外开关
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+      # backend/docs/openapi.json 是两个前端 SDK 的唯一来源,必须与当前代码一致
+      - name: OpenAPI 规范与提交版一致
+        run: |
+          cargo run -q -p hoshiyomi --example dump_openapi > /tmp/openapi.json
+          diff /tmp/openapi.json backend/docs/openapi.json
+
+  admin:
+    name: admin SDK 一致性 / type-check / build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      # 生成的 SDK 必须与 backend/docs/openapi.json 同批提交
+      - run: pnpm gen:api
+      - name: SDK 与提交版一致
+        run: git diff --exit-code -- packages/apisdk
+
+      - run: pnpm type-check
+      - run: pnpm --filter admin build
+
+  uniapp:
+    name: uniapp SDK 一致性 / type-check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: uniapp
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: uniapp/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm gen:api
+      - name: SDK 与提交版一致
+        run: git diff --exit-code -- src/api/generated
+
+      - run: pnpm type-check
