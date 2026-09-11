@@ -4,7 +4,7 @@
 
 `hoshiyomi` is a three-build-unit monorepo: a Rust/axum backend, a Nuxt 4 admin SPA (pnpm workspace with a generated alova SDK), and a uni-app mobile skeleton. The backend offers a MySQL-backed JSON REST API with user management, role-based access control (RBAC), dual authentication (server-side cookie sessions + JWT bearer with rotating refresh tokens), and machine-generated OpenAPI docs — the single source of truth for both frontend API clients.
 
-- `backend/` — Rust (edition 2024) single crate. Stack: axum 0.8 / tokio (full) / sqlx 0.9 (MySQL) / argon2 + jsonwebtoken / validator / utoipa 5 (Scalar + Swagger UI) / clap 4 + inquire / tracing. Two targets: library crate (`src/lib.rs`, exposes `build_app`, `config::{AppConfig, RawAppConfig}`, `state::AppState`) + binary `hoshiyomi` (`src/main.rs` → `cli::run()`).
+- `backend/` — Rust (edition 2024) single crate. Stack: axum 0.8 / tokio (full) / sqlx 0.9 (MySQL) / validator / utoipa 5 (Scalar + Swagger UI) / clap 4 + inquire / tracing, on top of the in-house **`vivarium-rs` 0.3.1** toolkit (error envelope, validating extractors, CRUD/Query/Update, sessions + JWT + refresh tokens + passwords, config hot reload, OpenAPI mount). Two targets: library crate (`src/lib.rs`, exposes `build_app`, `api_document`, `config::{AppConfig, RawAppConfig}`, `state::AppState`) + binary `hoshiyomi` (`src/main.rs` → `cli::run()`).
 - `frontend/` — standalone pnpm workspace: Nuxt 4 SPA admin (`apps/admin`, srcDir `app/`) + generated alova SDK (`packages/apisdk`) + vendored internal Nuxt modules `packages/nuxt-modules` (`@hoshiyomi/alova`, `@hoshiyomi/nuxt-infra`, `@hoshiyomi/util`, `@hoshiyomi/shadcn`, `@hoshiyomi/tailwindcss`, `@hoshiyomi/nuxt-color-mode` — inlined in-repo, no git submodules).
 - `uniapp/` — independent pnpm uni-app (Vue 3) mobile skeleton: register / login (JWT) / workbench / profile. H5 for dev, mp-weixin build supported. Based on the vitesse-uni-app template (uni-helper toolchain).
 - **Codegen chain**: backend utoipa annotations → `cargo run --example dump_openapi > docs/openapi.json` (committed) → `pnpm gen:api` in `frontend/` and `uniapp/` separately. Contract changes must regenerate both SDKs in the same commit.
@@ -23,24 +23,24 @@ main.rs → cli::run → serve::serve → lib::build_app → modules::router
                                            ↓
                 AppState { config, db, services }  ← DI container
                                            ↓
-        modules/{user, role, auth}::{handlers → service → repository (free fns, &MySqlPool)}
+        modules/{user, role, auth}::{handlers → service (calls vivarium CRUD/Query/Update directly)}
 ```
 
-- **Strict four-layer domain modules** (`user`, `auth`, `role`): `handlers.rs` (axum + utoipa, never touches SQL) → `service.rs` (business logic, concrete struct holding a `MySqlPool` clone) → `repository.rs` (**free async functions** taking `&MySqlPool` — no repository structs). `role` has models/repository/service only, no HTTP handlers.
-- **Dependency direction**: `auth` → `user`/`role`, never upward; `state.rs` is the only place all three domains are wired together. `error.rs` is the leaf imported everywhere.
-- **DI style**: no DI framework, no trait objects. One `AppState { config, db, services }` with accessors `cfg()/db()/srv()`; `Services` is a `#[derive(Clone)]` struct of five `#[derive(Clone)]` services (`UserService`, `RoleService`, `AuthService`, `SessionService`, `TokenService`), constructed once by `AppState::new`. The CLI builds `Services` directly (no `AppState`) for DB commands.
+- **Domain modules** (`user`, `auth`, `role`): `handlers.rs` (axum + utoipa, never touches SQL) → `service.rs` (business logic, concrete struct holding a `MySqlPool` clone; data access goes straight through `vivarium-rs`'s `create`/`find_by_id`/`delete`/`Query`/`Update`). `role` has models/service only, no HTTP handlers.
+- **Dependency direction**: `auth` → `user`/`role`, never upward; `state.rs` is the only place all three domains are wired together. The error type is the library's `vivarium_rs::ApiError` (re-exported as `crate::{ApiError, ErrorKind, Result}` from `lib.rs`), imported everywhere.
+- **DI style**: no DI framework, no trait objects. One `AppState { config, db, services }` with accessors `cfg()/db()/srv()`; `Services` is `Clone` over `UserService`, `RoleService`, `AuthService`, the fixed `SessionAuth` layer, and an `Arc<ArcSwap<AuthRuntime>>` (JWT verifier + refresh-token manager) that config hot reload rebuilds. Constructed once by `AppState::new(cfg, pool)`; the CLI builds `Services` directly (no `AppState`) for DB commands.
 
 Request lifecycle:
 
 1. `src/main.rs` → `cli::run().await` (`src/cli/run.rs`): `dotenvy::dotenv()` → clap parse; no subcommand → `serve::serve()`.
-2. `src/serve.rs::serve`: `AppConfig::load()` → `infra::init_tracing` → `db::connect` → `db::migrate` (embedded migrations run at every startup) → `build_app(AppState::new(cfg, pool))` → bind → `axum::serve` with ctrl_c graceful shutdown.
-3. `src/lib.rs::build_app`: `OpenApiRouter::new().nest("/api/v1", modules::router())` → merge Scalar/Swagger UIs → `.fallback(not_found)` **registered before layers** (deliberate — see comment: so 404s still pass CORS/Trace) → layer `middleware::session::refresh_session_cookie` → `TraceLayer` + CORS → `.with_state(state)`.
-4. Per request: handler extracts `State<AppState>`, validated `AppJson/AppQuery/AppPath`, auth context `SessionCtx`/`JwtCtx`, calls `state.srv().<service>.<method>()`, returns `Result<impl IntoResponse, AppError>`.
+2. `src/serve.rs::serve`: `AppConfig::load()` → `vivarium_rs::serve::telemetry::init` → `db::connect` → `db::migrate` (embedded migrations run at every startup) → `AppState::new(cfg, pool)` → register hot-reload handlers → `build_app(state)` → bind → `axum::serve` with ctrl_c graceful shutdown. `cfg.watch()` stays alive for the process.
+3. `src/lib.rs::build_app`: `OpenApiRouter::new().nest("/api/v1", modules::router())` → `.with_state(state)` → merge `vivarium_rs::openapi::mount(_, "/api-docs", api_document())` (`/api-docs/{openapi.json,scalar,swagger-ui}`) → `.fallback(not_found)` **registered before layers** (deliberate — see comment: so 404s still pass CORS/Trace) → layer `vivarium_rs::session_layer` → `TraceLayer` + CORS.
+4. Per request: handler extracts `State<AppState>`, validated `PathVarser/QueryVarser/Varser`, auth context `SessionCtx`/`JwtCtx`, calls `state.srv().<service>.<method>()`, returns `Result<impl IntoResponse, ApiError>`. Chinese texts for library-produced messages come from `texts::install_chinese_texts()` (installed first thing in `cli::run` and `build_app`).
 
 Auth model:
 
-- **Session flow**: `SessionCtx` extractor reads cookie → DB session lookup with expiry check. `middleware/session.rs` does sliding renewal post-response (extends expiry past half-TTL and re-sets cookie); it never makes auth decisions.
-- **JWT flow**: `JwtCtx` (Bearer header, HS256), `TokenService::rotate_refresh_token` implements **single-use rotation**: fetch → DELETE → require `rows_affected == 1` (concurrent replay gets 0 → 401) → issue new pair. `TokenService` has a manual `Debug` impl redacting keys.
+- **Session flow**: `vivarium_rs::session_layer` resolves the cookie, looks the session up by its SHA-256 digest, injects `SessionCtx<u64>` into request extensions, deletes dead rows and clears stale cookies; `SessionCtx` (app-side, `auth/extractor.rs`) only reads that extension. Sliding renewal at half-TTL happens post-response inside the same layer. A DB failure *during* the lookup surfaces as 401 `未授权` (the library layer swallows it into "no session"), not 500 — accepted library semantics.
+- **JWT flow**: `JwtCtx` (Bearer header, HS256) decodes with `JwtVerifier` into `HsClaims { sub, username, exp, iat }`; `RefreshTokenManager::rotate` implements **single-use rotation** (hash → lookup → DELETE → require one row affected, so a replay gets 401) and re-signs the pair. Refresh tokens are stored as digests only.
 - **RBAC**: `Perm` enum in `src/modules/role/models.rs` (codes `*`, `user:read`, `user:*`, …) with `perms_match` wildcard logic; `roles.permissions` is a JSON column; `AuthService::require_permission` gates every protected handler. Frontend permission checks mirror this: `*` and `prefix.*` wildcards in `usePermissions()` (admin) — no `super_admin` special-casing needed (superuser holds `*`).
 
 ### Admin frontend (session cookie flow)
@@ -79,12 +79,11 @@ Page → Apis.auth.Auth__jwtLogin({ data }) (no .send(); alova method is thenabl
 |---|---|
 | `backend/` | Rust backend crate (everything below this row with `src/`, `migrations/`, `tests/` is under `backend/`) |
 | `backend/src/` | Library root; `build_app` router assembly |
-| `backend/src/config/` | Layered config (`mod.rs`, `schema.rs` serde structs + defaults, `paths.rs`, `meta.rs`) |
+| `backend/src/config/` | Layered config (`mod.rs` wrapper over `vivarium-config`, `schema.rs` serde structs + defaults, `legacy.rs` flat-env provider, `paths.rs`, `meta.rs`) |
 | `backend/src/cli/` | clap CLI (`command.rs`), dispatch (`run.rs`), implementations (`command_impl.rs`) |
-| `backend/src/modules/{user,auth,role}/` | Domain modules; each: `mod.rs` (router), `models.rs`, `service.rs`, `repository.rs`, `handlers.rs` |
-| `backend/src/common/` | `response.rs` (`ApiResponse`, `PageData`), `extractor.rs` (validating `AppPath/AppQuery/AppJson`) |
-| `backend/src/middleware/` | `cors.rs`, `session.rs` |
-| `backend/src/util/` | `password.rs` (Argon2 helpers) |
+|`backend/src/modules/{user,auth,role}/`|Domain modules: `models.rs` + `service.rs` everywhere; `user`/`auth` add `mod.rs` (router) + `handlers.rs`, `auth` also `extractor.rs` (`SessionCtx`/`JwtCtx`) and `stores.rs` (SQL session/refresh-token stores); `role` has **no HTTP surface** (CLI-only)|
+|`backend/src/common/`|`response.rs` (`ApiResponse` re-export + `PageData`); validating extractors come from the library|
+| `backend/src/middleware/` | `cors.rs` only — session handling lives in the library's `session_layer` |
 | `backend/examples/` | `dump_openapi.rs` — prints the OpenAPI JSON (no DB needed) |
 | `backend/docs/` | `openapi.json` — committed codegen source |
 | `backend/migrations/` | sqlx migrations, compiled into binary, applied at serve startup |
@@ -112,7 +111,7 @@ cargo run -- example dump_openapi > docs/openapi.json   # export OpenAPI spec (S
 ```
 
 - **Migrations**: embedded via `sqlx::migrate!("./migrations")`, run automatically when the server starts. **CLI subcommands do NOT migrate** — they assume the schema exists (created by first `serve`). No sqlx-cli needed.
-- **Config precedence**: `RawAppConfig::default()` → optional `config.toml` → `HOSHIYOMI__`-prefixed env (separator `__`, e.g. `HOSHIYOMI__AUTH__JWT__SECRET`) → legacy flat env overrides (`DATABASE_URL`, `HOST`, `PORT`, `RUST_LOG`, `LOG_LEVEL`, `JWT_SECRET`, `JWT_EXPIRES_IN_SECONDS`, `SESSION_COOKIE_NAME`, `SESSION_TTL_HOURS`). `.env` loaded via dotenvy; all values have code defaults in `backend/src/config/schema.rs`.
+- **Config precedence**: `RawAppConfig::default()` → optional `config.toml` → `HOSHIYOMI__`-prefixed env (separator `__`, e.g. `HOSHIYOMI__AUTH__JWT__SECRET`) → legacy flat env overrides (`DATABASE_URL`, `HOST`, `PORT`, `RUST_LOG`, `LOG_LEVEL`, `JWT_SECRET`, `JWT_EXPIRES_IN_SECONDS`, `SESSION_COOKIE_NAME`, `SESSION_TTL_HOURS`). `.env` loaded via dotenvy; all values have code defaults in `backend/src/config/schema.rs`. Resolution runs through `vivarium-config` (figment), and `config.toml` is **watched**: `auth.jwt.*` edits take effect without a restart, while `server`/`database`/`log`/`auth.session` edits only log a `需重启生效` warning. Legacy flat vars are merged last, so **`.env` overrides `config.toml`** (e.g. `PORT=8080` in `.env` beats `[server] port` in the file).
 - **Local mode**: `HOSHIYOMI_LOCAL_MODE=1` (or an existing `./.hoshiyomi` dir) puts config/logs under `./.hoshiyomi` instead of the user config/data dirs.
 
 ### Admin frontend (run in `frontend/`)
@@ -147,33 +146,34 @@ docker compose up -d       # root: MySQL 8.4 :3306 (hoshiyomi/password, db hoshi
 
 ### Backend — error handling, central single-type
 
-- One error type: `#[derive(Error)] AppError { kind: ErrorKind, message, errors, #[source] source }` (thiserror) with a separate 13-variant `ErrorKind` enum. `pub type Result<T> = std::result::Result<T, AppError>;` is the universal alias. Never introduce a second error type.
-- Idioms: `ErrorKind::NotFound.msg("用户不存在")`; the `bail!(ErrorKind::NotFound, "...")` macro (single-arg form defaults to `Internal`); extension traits `ResultExt::err_kind[_msg]` and `OptionAppExt::ok_or_err_msg`; `register_errors!` macro generates `From` impls so `?` works directly on io/serde_json/config/sqlx/inquire/axum-rejection/validator/JoinError errors.
-- **HTTP mapping** (`IntoResponse for AppError`): 400 validation/data-parse; 401 unauthorized; 403 forbidden/invalid-credentials/permission-denied; 404 not found; 409 already-exists; 500 everything else. Body is always the `ApiResponse` envelope with `code` = numeric HTTP status.
-- **Anti-leak rule**: internal errors never expose source text to clients (`with_err` fills `message` from source only for non-internal kinds; `trace_source()` logs internals via `tracing::error!`). Keep this invariant.
-- `map_duplicate_key(e, msg)`: converts MySQL duplicate-key error 1062 → `ErrorKind::AlreadyExists` (409) with a friendly Chinese message — use after uniqueness pre-checks as the race fallback (see `UserService::create`, `RoleService::{create, assign_to_user}`).
+- One error type, owned by the library: `vivarium_rs::ApiError { kind, message, errors, source }` with a 9-variant `ErrorKind` (`BadRequest`/`DataParse`/`Validation`/`Unauthorized`/`Forbidden`/`NotFound`/`Conflict`/`TooManyRequests`/`Internal`). `crate::Result<T>` is the universal alias. Never introduce a second error type.
+- Idioms: `ApiError::not_found("用户不存在")` for the common kinds; `ApiError::new(ErrorKind::Internal, "…").with_source(e)` when the status kind and the client message differ; `?` works directly on io/serde_json/sqlx errors (library `From` impls — `sqlx::Error` maps `RowNotFound` → 404 and unique violations → 409). `config::ConfigError`, `inquire::InquireError` and `JoinError` have no library conversion: map them explicitly at the call site.
+- **HTTP mapping**: `DataParse`/`BadRequest` 400, `Validation` **422**, `Unauthorized` 401, `Forbidden` 403, `NotFound` 404, `Conflict` 409, `TooManyRequests` 429, `Internal` 500. Body is always the `ApiResponse` envelope with `code` = numeric HTTP status.
+- **Anti-leak rule**: internal errors never expose source text to clients (the client message is the `Texts` catalog entry); the source is kept for `tracing` and only echoed in a `system` field while `install_debug_mode` is on. Keep this invariant.
+- Uniqueness races: rely on the library's `From<sqlx::Error>` (409) or `ApiError::conflict_from_db(e, msg)` when the interface's Chinese message must survive — after the explicit pre-check, as before (see `UserService::create`, `RoleService::{create, assign_to_user}`).
+- Library-produced messages are English by default; `backend/src/texts.rs::install_chinese_texts()` injects the Chinese catalog, with `echo_details = true` so 4xx messages keep the underlying detail (`用户 id 无效: abc`). It must run before any other library call — hence the first line of `cli::run` and `build_app`. The same module's `localize_schema()` rewrites the library's English rustdoc *schema descriptions* to Chinese via `openapi::localize` (called from `lib.rs::set_info`, so `api_document()` and the served document both get it).
 
 ### Backend — HTTP layer
 
-- **Response envelope** (`backend/src/common/response.rs`): `ApiResponse<T> { code, message, errors?, data }` — `code = 0` means success, otherwise the HTTP status; `errors` only present on validation failures. Use `ApiResponse::success/error/error_with_errors`, never bare JSON bodies. Pagination returns `PageData<T> { items, total, page, per_page }`.
-- **Validating extractors**: use `AppPath<T>/AppQuery<T>/AppJson<T>` (not bare axum extractors) — they run `validator`'s `value.validate()` with `Rejection = AppError`. Request DTOs carry `#[validate(...)]` attributes with Chinese messages.
-- **Auth extractors**: `SessionCtx` and `JwtCtx` implement `FromRequestParts<AppState>` with `Rejection = AppError`; `Option<SessionCtx>` is infallible for optional-auth routes.
-- **Handlers**: return `Result<impl IntoResponse, AppError>`; every handler carries `#[utoipa::path(...)]` with Chinese descriptions **and an explicit `operation_id` (`Auth__login`, `User__list`, …)** — the operation id is the generated SDK function name, change it only with a coordinated SDK regen; routers are `OpenApiRouter<AppState>` merged per module.
+- **Response envelope** (library-owned, re-exported in `backend/src/common/response.rs`): `ApiResponse<T> { code, message, errors?, data }` — `code = 0` means success, otherwise the HTTP status; `errors` only present on validation failures; `data` always serialized (`null` on error). Success bodies use `ApiResponse::ok(data)`, never bare JSON; failures are `ApiError` (never hand-built envelopes). Pagination returns the app-side `PageData<T> { items, total, page, per_page }` (u64 — maps `ApiResponse_PageData_UserResp`), built from the library's `Page<User>` inside the service.
+- **Validating extractors**: use `vivarium_rs::{PathVarser, QueryVarser, Varser}` (not bare axum extractors) — they run `Initializer::try_initialize` then `validator`'s `validate()`, with `Rejection = ApiError` (parse failure → 400, validation failure → 422). `Varser` consumes the body and must be the **last** parameter; `PathVarser`/`QueryVarser` are `FromRequestParts`. Every DTO used with them needs `impl vivarium_rs::Initializer for X {}`. Request DTOs carry `#[validate(...)]` attributes with Chinese messages.
+- **Auth extractors**: `SessionCtx` and `JwtCtx` implement `FromRequestParts<AppState>` with `Rejection = ApiError`; `SessionCtx` only reads the extension the library's session layer injected.
+- **Handlers**: return `Result<impl IntoResponse, ApiError>`; every handler carries `#[utoipa::path(...)]` with Chinese descriptions **and an explicit `operation_id` (`Auth__login`, `User__list`, …)** — the operation id is the generated SDK function name, change it only with a coordinated SDK regen; routers are `OpenApiRouter<AppState>` merged per module.
 - **Middleware ordering matters**: in `build_app`, the `not_found` fallback must stay registered before `.layer(...)` so 404s traverse CORS/Trace.
 
 ### Backend — async & DB
 
 - sqlx queries are runtime-checked raw string literals (`sqlx::query`/`query_as::<_, Row>` with `?` binds) — **not** compile-time `query!` macros (no build-time DATABASE_URL requirement). Keep it that way.
-- Repositories: free `async fn` taking `&MySqlPool` first, ending `.fetch_optional(pool).await.map_err(AppError::from)`.
-- DB pool: max 10 connections, `after_connect` pins session `time_zone = '+00:00'`; SQL writes use `UTC_TIMESTAMP()`, Rust reads use `DateTime<Utc>`. Pin timezone correctness when touching queries.
+- Data access: services call the library's `create`/`find_by_id`/`delete`/`Query`/`Update` with `&pool` (row-returning calls additionally need `T: sqlx::FromRow + Send + Unpin`; `Query::paginate` needs a `Copy` executor, so pass `&pool`). Entities carry `#[derive(vivarium_rs::Entity)]` + a `*Col` `Column` enum; `created_at`/`updated_at` are `#[entity(skip)]` so writes keep the DB defaults. The two statements the library cannot express — the `user_roles × roles` JOIN and the `user_roles` INSERT — stay as raw `sqlx::query*` inside `role/service.rs`.
+- DB pool: max 10 connections, `after_connect` pins session `time_zone = '+00:00'`; timestamp columns default to `UTC_TIMESTAMP()`, `Update::set_expr(…, Expr::Now)` renders `CURRENT_TIMESTAMP` (equal only because the session tz is pinned), Rust reads use `DateTime<Utc>`. Pin timezone correctness when touching queries.
 - Schema: utf8mb4/utf8mb4_unicode_ci; **no FOREIGN KEY constraints anywhere** — referential integrity is application-level.
 
 ### Backend — naming & organization
 
-- DTOs: `*Req` (requests, e.g. `RegisterReq`), `*Resp` (responses, e.g. `UserResp`), `*Row` (raw sqlx rows, e.g. `SessionRow`), domain rows bare (`User`, `Role`); services `*Service`; auth contexts `*Ctx`.
+- DTOs: `*Req` (requests, e.g. `RegisterReq`), `*Resp` (responses, e.g. `UserResp`), domain rows bare (`User`, `Role`); services `*Service`; auth contexts `*Ctx`.
 - `User` (FromRow) is deliberately **not** `Serialize` — password never leaves the server; responses go through `UserResp` via `From<User>`.
 - Domain modules named singular nouns (`user`, `role`, `auth`); per-directory `mod.rs` with `pub mod` decls + re-exports.
-- Config keys kebab-case; serde defaults kebab-case with explicit `rename` only where needed.
+- Config keys kebab-case by default; the auth sections keep the library's explicit snake_case serde renames (`cookie_name`, `ttl_hours`, `expires_in_seconds`) because both `config.toml` and `HOSHIYOMI__AUTH__SESSION__COOKIE_NAME`-style env vars map through them.
 - Unit tests are inline `#[cfg(test)] mod tests` in the same file; integration tests in `backend/tests/`.
 
 ### Admin frontend
@@ -202,13 +202,14 @@ docker compose up -d       # root: MySQL 8.4 :3306 (hoshiyomi/password, db hoshi
 | `backend/src/main.rs` | Binary entry → `cli::run()` |
 | `Cargo.toml` | Root **virtual workspace** manifest (editor/tooling discovery; `default-members = ["backend"]`) |
 | `backend/src/lib.rs` | `build_app(AppState) -> Router`; public API surface |
-| `backend/src/serve.rs` | Server bootstrap: config → tracing → DB connect + migrate → bind |
-| `backend/src/error.rs` | `AppError`/`ErrorKind`/`bail!`/`Result`/`ResultExt`/`map_duplicate_key` — the error system core |
-| `backend/src/state.rs` | `AppState` + `Services` DI container |
+| `backend/src/serve.rs` | Server bootstrap: config → telemetry → DB connect + migrate → hot-reload registration → bind |
+|`backend/src/texts.rs`|Chinese texts: `install_chinese_texts()` (library message catalog) + `localize_schema()` (library schema descriptions)|
+|`backend/src/state.rs`|`AppState` + `Services` DI container + `AuthRuntime` snapshot (`ArcSwap`)|
+| `backend/src/config/legacy.rs` | The 9 legacy flat env vars as a figment provider (highest priority) |
 | `backend/src/config/schema.rs` | `RawAppConfig` + all defaults (port 8080, session TTL 24h, JWT TTL 900s, MySQL URL) |
-| `backend/src/config/mod.rs` | `AppConfig` (`Arc`-backed, cheap clone), `load()`/`load_raw()` layered resolution |
+| `backend/src/config/mod.rs` | `AppConfig` — thin wrapper over `vivarium_rs::Config<RawAppConfig>` (`load`/`get`/`watch`/`register`) |
 | `backend/src/modules/auth/extractor.rs` | `SessionCtx`/`JwtCtx` auth contexts |
-| `backend/src/modules/auth/token.rs` | JWT + refresh-token single-use rotation |
+| `backend/src/modules/auth/stores.rs` | `SessionStore`/`RefreshTokenStore` MySQL impls (SHA-256 digest keys) |
 | `backend/src/modules/role/models.rs` | `Perm` vocabulary + `DefaultRole` seeding table |
 | `backend/src/db.rs` | `connect` (UTC pool), `migrate` (`sqlx::migrate!`) |
 | `backend/examples/dump_openapi.rs` | Prints OpenAPI JSON (no DB); output → `backend/docs/openapi.json` |
@@ -236,14 +237,14 @@ docker compose up -d       # root: MySQL 8.4 :3306 (hoshiyomi/password, db hoshi
 - **Backend tooling**: no CI config, no rustfmt/clippy/deny configs — use `cargo fmt`/`cargo clippy` defaults. No Makefile/justfile.
 - **Frontend tooling**: prettier config at `frontend/packages/nuxt-modules/.prettierrc.json` (semi false, single quotes, width 120, trailing commas); eslint configs per unit (admin via `.nuxt`-generated config, uniapp via `@uni-helper/eslint-config`). No CI config.
 - **Backend runtime**: MySQL reachable at `DATABASE_URL` (default `mysql://hoshiyomi:password@127.0.0.1:3306/hoshiyomi`); `docker compose up -d` at root provides it. Logs: stdout + daily-rotating JSON `access.log` under `Paths::log_dir()`; `RUST_LOG` controls the env filter. No Redis.
-- **OpenAPI**: utoipa 5 with `utoipa_axum::routes!` — adding an endpoint means adding its `#[utoipa::path]` (with `operation_id`) or the spec breaks.
+- **OpenAPI**: utoipa 5 with `utoipa_axum::routes!` — adding an endpoint means adding its `#[utoipa::path]` (with `operation_id`) or the spec breaks. `lib.rs::set_info` is the shared finalizer (info + `texts::localize_schema`), and both `api_document()` and `build_app` derive their document from their own router's `split_for_parts()`, so the committed JSON and the served `/api-docs/openapi.json` cannot drift. Library-owned schema descriptions are English rustdoc; `localize_schema` maps them to Chinese through `openapi::localize` — **a library upgrade that adds or rewords a description needs a new table entry**, and `tests/api.rs::openapi_schema_descriptions_are_chinese` fails until it is added.
 - **Codegen gotchas**: `alova gen` does NOT use `defaultsPlugin`/`toPlugin` (their output references response schemas that utoipa inlines into `ApiResponse_*` envelopes — broken types, unused code). Generated `defaults.ts`/`to.ts` must not exist; regenerate both SDKs when the contract changes; commit `backend/docs/openapi.json` with the change.
 
 ## Testing & QA
 
-- **Backend framework**: built-in `cargo test` (tokio tests). Only dev-dependency: `http-body-util`. 8 tests total: 5 integration + 3 inline unit tests.
-- **Backend integration style** (`backend/tests/api.rs`): black-box — `build_app(AppState::new(AppConfig::new(RawAppConfig::default()), pool))` with a **`connect_lazy` MySQL pool pointed at an unreachable address**; requests dispatched in-process via `tower::ServiceExt::oneshot` (no TCP server). No config file/env reads; tests exercising DB paths assert the 500 failure path. Helpers `lazy_state/send/get_json/post_json` live in this file.
-- **Backend unit tests**: synchronous, inline in `src/util/password.rs` (Argon2 round-trip) and `src/modules/role/models.rs` (permission code consistency, `perms_match` wildcard logic).
+- **Backend framework**: built-in `cargo test` (tokio tests). Only dev-dependency: `http-body-util`. 9 tests total: 7 integration (including `openapi_schema_descriptions_are_chinese`, which dumps `api_document()` and rejects any non-Chinese schema description) + 2 inline unit tests.
+- **Backend integration style** (`backend/tests/api.rs`): black-box — `build_app(AppState::new(AppConfig::new(RawAppConfig::default()).expect("配置构造失败"), pool))` with a **`connect_lazy` MySQL pool pointed at an unreachable address**; requests dispatched in-process via `tower::ServiceExt::oneshot` (no TCP server). No config file/env reads; tests exercising DB paths assert the 500 failure path. Helpers `lazy_state/send/get_json/post_json` live in this file.
+- **Backend unit tests**: synchronous, inline in `src/modules/role/models.rs` (permission code consistency and `perms_match` wildcard logic — the matcher now delegates to the library's `perms_match`). Password hashing/verification moved into the library, so `util/password.rs` no longer exists.
 - **Admin frontend**: no unit tests — `pnpm check` (lint + prettier) + `pnpm type-check` + `pnpm --filter admin build` are the gates; behavior verified manually in the browser (login → dashboard → users CRUD → profile → logout).
 - **Uniapp**: no unit tests — `pnpm lint` + `pnpm type-check` + `pnpm build` (H5) are the gates; behavior verified manually (register → login → workbench → profile → logout).
 - **Coverage**: no coverage config, no CI anywhere in the repo.

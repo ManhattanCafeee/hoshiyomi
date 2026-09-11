@@ -1,18 +1,14 @@
 use axum::{Json, extract::State, response::IntoResponse};
 
 use crate::{
-    bail,
-    common::{
-        extractor::{AppJson, AppPath, AppQuery},
-        response::{ApiResponse, PageData},
-    },
-    error::{AppError, ErrorKind},
+    common::response::{ApiResponse, PageData},
     modules::{
         auth::{extractor::SessionCtx, models::MessageResp},
         role::models::Perm,
     },
     state::AppState,
 };
+use vivarium_rs::{ApiError, PathVarser, QueryVarser, Varser};
 
 use super::models::{
     ChangePasswordReq, CreateUserReq, IdPath, PaginationReq, UpdateUsernameReq, UserResp,
@@ -37,8 +33,8 @@ use super::models::{
 pub async fn list(
     State(state): State<AppState>,
     ctx: SessionCtx,
-    AppQuery(pagination): AppQuery<PaginationReq>,
-) -> Result<impl IntoResponse, AppError> {
+    QueryVarser(pagination): QueryVarser<PaginationReq>,
+) -> Result<impl IntoResponse, ApiError> {
     state
         .srv()
         .auth
@@ -48,14 +44,15 @@ pub async fn list(
     let page = pagination.page;
     let per_page = pagination.per_page;
 
-    let users = state.srv().user.list(page, per_page).await?;
-    let total = state.srv().user.count().await?;
+    let page_data = state.srv().user.list_page(page, per_page).await?;
 
-    let items = users.into_iter().map(UserResp::from).collect();
+    let items = page_data.items.into_iter().map(UserResp::from).collect();
 
-    Ok(Json(ApiResponse::success(PageData {
+    Ok(Json(ApiResponse::ok(PageData {
         items,
-        total,
+        total: page_data.total,
+        // 回显请求值:库的 Pagination 会把 page 归一化到 1..=1_000_000,回显归一化值会让
+        // 超范围请求的响应与请求不自洽(HEAD 的行为是逐字回显请求值)
         page,
         per_page,
     })))
@@ -77,8 +74,8 @@ pub async fn list(
 pub async fn create(
     State(state): State<AppState>,
     ctx: SessionCtx,
-    AppJson(payload): AppJson<CreateUserReq>,
-) -> Result<impl IntoResponse, AppError> {
+    Varser(payload): Varser<CreateUserReq>,
+) -> Result<impl IntoResponse, ApiError> {
     state
         .srv()
         .auth
@@ -91,7 +88,7 @@ pub async fn create(
         .create(payload.username, payload.email, payload.password)
         .await?;
 
-    Ok(Json(ApiResponse::success(UserResp::from(user))))
+    Ok(Json(ApiResponse::ok(UserResp::from(user))))
 }
 
 #[utoipa::path(
@@ -112,9 +109,9 @@ pub async fn create(
 )]
 pub async fn get(
     State(state): State<AppState>,
-    AppPath(IdPath { id }): AppPath<IdPath>,
+    PathVarser(IdPath { id }): PathVarser<IdPath>,
     ctx: SessionCtx,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<impl IntoResponse, ApiError> {
     state
         .srv()
         .auth
@@ -123,7 +120,7 @@ pub async fn get(
 
     let user = state.srv().user.get_by_id(id).await?;
 
-    Ok(Json(ApiResponse::success(UserResp::from(user))))
+    Ok(Json(ApiResponse::ok(UserResp::from(user))))
 }
 
 #[utoipa::path(
@@ -146,10 +143,10 @@ pub async fn get(
 )]
 pub async fn update_username(
     State(state): State<AppState>,
-    AppPath(IdPath { id }): AppPath<IdPath>,
+    PathVarser(IdPath { id }): PathVarser<IdPath>,
     ctx: SessionCtx,
-    AppJson(payload): AppJson<UpdateUsernameReq>,
-) -> Result<impl IntoResponse, AppError> {
+    Varser(payload): Varser<UpdateUsernameReq>,
+) -> Result<impl IntoResponse, ApiError> {
     state
         .srv()
         .auth
@@ -162,7 +159,7 @@ pub async fn update_username(
         .update_username(id, payload.username)
         .await?;
 
-    Ok(Json(ApiResponse::success(UserResp::from(user))))
+    Ok(Json(ApiResponse::ok(UserResp::from(user))))
 }
 
 #[utoipa::path(
@@ -184,12 +181,12 @@ pub async fn update_username(
 )]
 pub async fn change_password(
     State(state): State<AppState>,
-    AppPath(IdPath { id }): AppPath<IdPath>,
+    PathVarser(IdPath { id }): PathVarser<IdPath>,
     ctx: SessionCtx,
-    AppJson(payload): AppJson<ChangePasswordReq>,
-) -> Result<impl IntoResponse, AppError> {
+    Varser(payload): Varser<ChangePasswordReq>,
+) -> Result<impl IntoResponse, ApiError> {
     if ctx.user_id != id {
-        bail!(ErrorKind::PermissionDenied, "不能修改他人密码");
+        return Err(ApiError::forbidden("不能修改他人密码"));
     }
 
     state
@@ -198,7 +195,7 @@ pub async fn change_password(
         .change_password(id, &payload.old_password, &payload.new_password)
         .await?;
 
-    Ok(Json(ApiResponse::success(MessageResp {
+    Ok(Json(ApiResponse::ok(MessageResp {
         message: "密码修改成功".to_string(),
     })))
 }
@@ -221,9 +218,9 @@ pub async fn change_password(
 )]
 pub async fn delete(
     State(state): State<AppState>,
-    AppPath(IdPath { id }): AppPath<IdPath>,
+    PathVarser(IdPath { id }): PathVarser<IdPath>,
     ctx: SessionCtx,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<impl IntoResponse, ApiError> {
     state
         .srv()
         .auth
@@ -232,7 +229,7 @@ pub async fn delete(
 
     state.srv().user.delete(id).await?;
 
-    Ok(Json(ApiResponse::success(MessageResp {
+    Ok(Json(ApiResponse::ok(MessageResp {
         message: "用户已删除".to_string(),
     })))
 }

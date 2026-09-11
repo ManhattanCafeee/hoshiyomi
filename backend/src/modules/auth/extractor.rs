@@ -1,13 +1,13 @@
-use axum::{extract::FromRequestParts, http::request::Parts};
-use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
-use cookie::time::Duration;
+use axum::{
+    extract::FromRequestParts,
+    http::{header, request::Parts},
+};
 
 use crate::{
-    bail,
-    error::{AppError, ErrorKind, OptionAppExt, ResultExt},
-    modules::user::models::User,
+    modules::{auth::models::HsClaims, user::models::User},
     state::{AppState, Services},
 };
+use vivarium_rs::{ApiError, ErrorKind};
 
 /// 从请求提取的 JWT 认证上下文(Bearer token)
 #[derive(Debug)]
@@ -21,26 +21,31 @@ impl JwtCtx {
         &self.username
     }
 
-    pub async fn user(&self, services: &Services) -> Result<User, AppError> {
+    pub async fn user(&self, services: &Services) -> Result<User, ApiError> {
         services.user.get_by_id(self.user_id).await
     }
 }
 
 impl FromRequestParts<AppState> for JwtCtx {
-    type Rejection = AppError;
+    type Rejection = ApiError;
 
     async fn from_request_parts(
         parts: &mut Parts,
         state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        let token = parts
-            .headers
-            .get("Authorization")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.strip_prefix("Bearer "))
-            .ok_or(ErrorKind::Unauthorized)?;
+    ) -> std::result::Result<Self, Self::Rejection> {
+        // 方案名按 RFC 7235 大小写不敏感(库的 JWT 中间件同样用 eq_ignore_ascii_case 解析)
+        let token = vivarium_rs::get_authorization(&parts.headers)
+            .and_then(|raw| raw.split_once(' '))
+            .filter(|(scheme, _)| scheme.eq_ignore_ascii_case("bearer"))
+            .map(|(_, token)| token)
+            .ok_or_else(|| ApiError::unauthorized("未授权"))?;
 
-        let claims = state.srv().token.decode_access_token(token)?;
+        let claims = state
+            .srv()
+            .runtime()
+            .jwt
+            .decode::<HsClaims>(token)
+            .map_err(|e| ApiError::new(ErrorKind::Unauthorized, "无效的令牌").with_source(e))?;
 
         Ok(JwtCtx {
             user_id: claims.sub,
@@ -49,79 +54,48 @@ impl FromRequestParts<AppState> for JwtCtx {
     }
 }
 
-pub fn set_session_cookie(jar: CookieJar, state: &AppState, session_id: &str) -> CookieJar {
-    let name = state.cfg().auth.session.cookie_name.clone();
-    let ttl_secs = state.cfg().auth.session.ttl_hours * 3600;
-    let mut cookie = Cookie::new(name, session_id.to_owned());
-    cookie.set_path("/");
-    cookie.set_http_only(true);
-    cookie.set_same_site(SameSite::Lax);
-    cookie.set_max_age(Some(Duration::seconds(ttl_secs as i64)));
-    jar.add(cookie)
-}
-
-pub fn remove_session_cookie(jar: CookieJar, state: &AppState) -> CookieJar {
-    let name = state.cfg().auth.session.cookie_name.clone();
-    let mut cookie = Cookie::new(name, "");
-    cookie.set_path("/");
-    jar.remove(cookie)
-}
-
-/// 从会话 Cookie 提取的认证上下文
+/// 从会话 Cookie 提取的认证上下文。
+///
+/// 会话的解析、查库、续期由库的 `session_layer` 完成,并把 `SessionCtx<u64>` 注入请求扩展;
+/// 这里只读扩展,按「请求是否带了该 cookie」区分两条 401 文案。
 #[derive(Debug)]
 pub struct SessionCtx {
     pub user_id: u64,
 }
 
 impl SessionCtx {
-    pub async fn user(&self, services: &Services) -> Result<User, AppError> {
+    pub async fn user(&self, services: &Services) -> Result<User, ApiError> {
         services.user.get_by_id(self.user_id).await
     }
 }
 
 impl FromRequestParts<AppState> for SessionCtx {
-    type Rejection = AppError;
+    type Rejection = ApiError;
 
     async fn from_request_parts(
         parts: &mut Parts,
         state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        let jar = CookieJar::from_request_parts(parts, state)
-            .await
-            .err_kind(ErrorKind::Unauthorized)?;
-
-        let session_id = jar
-            .get(&state.cfg().auth.session.cookie_name)
-            .ok_or_err_msg(ErrorKind::Unauthorized, "缺少会话 Cookie")?
-            .value()
-            .to_owned();
-
-        let session = state
-            .srv()
-            .session
-            .find(&session_id)
-            .await?
-            .ok_or(ErrorKind::Unauthorized)?;
-
-        if session.expires_at < chrono::Utc::now() {
-            state.srv().session.delete(&session_id).await?;
-            bail!(ErrorKind::Unauthorized, "会话已过期");
+    ) -> std::result::Result<Self, Self::Rejection> {
+        if let Some(ctx) = parts.extensions.get::<vivarium_rs::SessionCtx<u64>>() {
+            return Ok(SessionCtx {
+                user_id: ctx.user_id,
+            });
         }
 
-        // 滑动续期由 middleware::session::refresh_session_cookie 在响应阶段完成
-        Ok(SessionCtx {
-            user_id: session.user_id,
-        })
-    }
-}
+        let name = state.srv().session().cookie().name.as_str();
+        let had_cookie = parts
+            .headers
+            .get(header::COOKIE)
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|raw| {
+                raw.split(';')
+                    .any(|pair| pair.trim_start().starts_with(&format!("{name}=")))
+            });
 
-impl FromRequestParts<AppState> for Option<SessionCtx> {
-    type Rejection = std::convert::Infallible;
-
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        Ok(SessionCtx::from_request_parts(parts, state).await.ok())
+        Err(ApiError::unauthorized(if had_cookie {
+            "未授权"
+        } else {
+            "缺少会话 Cookie"
+        }))
     }
 }

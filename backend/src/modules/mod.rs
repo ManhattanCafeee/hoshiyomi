@@ -25,5 +25,5 @@ pub fn router() -> OpenApiRouter<AppState> {
     ),
 )]
 async fn health() -> Json<ApiResponse<String>> {
-    Json(ApiResponse::success("ok".to_string()))
+    Json(ApiResponse::ok("ok".to_string()))
 }

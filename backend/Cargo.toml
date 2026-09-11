@@ -17,18 +17,10 @@ chrono = { version = "0.4", features = ["serde"] }
 # 环境变量加载
 dotenvy = "0.15"
 
-# 日志与跟踪 (推荐)
+# 日志与跟踪(输出层由库的 telemetry 提供,见下方内部工具库)
 tracing = "0.1"
-tracing-appender = "0.2"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "ansi", "json"] }
 
-# 认证与安全
-argon2 = "0.5"
-password-hash = { version = "0.5", features = ["rand_core", "getrandom"] }
-jsonwebtoken = "9"
-uuid = { version = "1", features = ["v4", "serde"] }
-axum-extra = { version = "0.12", features = ["cookie"] }
-cookie = "0.18"
+# 认证与安全(会话/JWT/刷新令牌/口令全部由 vivarium 提供,见下方内部工具库)
 
 # 校验
 validator = { version = "0.20", features = ["derive"] }
@@ -37,8 +29,7 @@ validator = { version = "0.20", features = ["derive"] }
 tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["cors", "trace"] }
 
-# 配置
-config = { version = "0.15", features = ["toml"] }
+# 目录选择(local mode;库的 config 不做文件系统布局决策,故保留)
 dirs = "6"
 
 # CLI
@@ -47,14 +38,15 @@ inquire = "0.9"
 
 # 工具库
 strum = { version = "0.28", features = ["derive"] }
-thiserror = "2"
-derive_more = { version = "2", features = ["full"] }
+
+# 内部工具库：错误/响应信封、校验提取器、数据访问、认证工具集、配置热重载、OpenAPI 挂载
+vivarium-rs = { version = "0.3.3", default-features = false, features = ["web", "db-mysql", "config", "utoipa", "utoipa-ui", "telemetry"] }
+figment = "0.10"
+arc-swap = "1"
 
 # OpenAPI 文档
 utoipa = { version = "5", features = ["axum_extras"] }
 utoipa-axum = "0.2"
-utoipa-scalar = { version = "0.3", features = ["axum"] }
-utoipa-swagger-ui = { version = "9", features = ["axum"] }
 
 [dev-dependencies]
 http-body-util = "0.1"

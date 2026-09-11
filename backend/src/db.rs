@@ -2,11 +2,12 @@ use std::str::FromStr;
 
 use sqlx::mysql::{MySqlConnectOptions, MySqlPool, MySqlPoolOptions};
 
-use crate::error::{ErrorKind, Result, ResultExt};
+use vivarium_rs::{ApiError, ErrorKind, Result};
 
 pub async fn connect(database_url: &str) -> Result<MySqlPool> {
-    let connect_options = MySqlConnectOptions::from_str(database_url)
-        .err_kind_msg(ErrorKind::Config, "DATABASE_URL 无效,请参考 .env.example")?;
+    let connect_options = MySqlConnectOptions::from_str(database_url).map_err(|e| {
+        ApiError::new(ErrorKind::Internal, "DATABASE_URL 无效,请参考 .env.example").with_source(e)
+    })?;
 
     MySqlPoolOptions::new()
         .max_connections(10)
@@ -24,13 +25,13 @@ pub async fn connect(database_url: &str) -> Result<MySqlPool> {
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "数据库连接失败");
-            ErrorKind::Internal.err_msg(e, "数据库连接失败")
+            ApiError::new(ErrorKind::Internal, "数据库连接失败").with_source(e)
         })
 }
 
 pub async fn migrate(pool: &MySqlPool) -> Result<()> {
     sqlx::migrate!("./migrations").run(pool).await.map_err(|e| {
         tracing::error!(error = %e, "数据库迁移失败");
-        ErrorKind::Internal.err_msg(e, "数据库迁移失败")
+        ApiError::new(ErrorKind::Internal, "数据库迁移失败").with_source(e)
     })
 }

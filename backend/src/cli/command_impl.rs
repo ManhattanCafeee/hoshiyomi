@@ -1,10 +1,9 @@
 use crate::{
-    bail,
     config::RawAppConfig,
-    error::{ErrorKind, Result},
     modules::role::models::{DefaultRole, Perm},
     state::Services,
 };
+use vivarium_rs::{ApiError, ErrorKind, Result};
 
 pub async fn init_rbac(services: &Services) -> Result<()> {
     println!("Initializing roles...");
@@ -38,15 +37,21 @@ pub async fn create_superuser(
 ) -> Result<()> {
     let username = match username {
         Some(u) => u,
-        None => inquire::Text::new("用户名:").prompt()?,
+        None => inquire::Text::new("用户名:")
+            .prompt()
+            .map_err(|e| ApiError::new(ErrorKind::Internal, "交互输入失败").with_source(e))?,
     };
     let password = match password {
         Some(p) => p,
-        None => inquire::Password::new("密码:").prompt()?,
+        None => inquire::Password::new("密码:")
+            .prompt()
+            .map_err(|e| ApiError::new(ErrorKind::Internal, "交互输入失败").with_source(e))?,
     };
     let email = match email {
         Some(e) => e,
-        None => inquire::Text::new("邮箱:").prompt()?,
+        None => inquire::Text::new("邮箱:")
+            .prompt()
+            .map_err(|e| ApiError::new(ErrorKind::Internal, "交互输入失败").with_source(e))?,
     };
 
     println!("创建超级用户: {}", username);
@@ -57,7 +62,7 @@ pub async fn create_superuser(
     println!("  用户已创建,ID: {}", user.id);
 
     let Some(superuser_role) = services.role.find_by_name("superuser").await? else {
-        bail!(ErrorKind::NotFound, "未找到 superuser 角色,请先运行 init");
+        return Err(ApiError::not_found("未找到 superuser 角色,请先运行 init"));
     };
 
     services
@@ -110,7 +115,7 @@ pub async fn create_role(
 
 pub async fn delete_role(services: &Services, name: String) -> Result<()> {
     let Some(role) = services.role.find_by_name(&name).await? else {
-        bail!(ErrorKind::NotFound, "角色不存在");
+        return Err(ApiError::not_found("角色不存在"));
     };
 
     services.role.delete(role.id).await?;

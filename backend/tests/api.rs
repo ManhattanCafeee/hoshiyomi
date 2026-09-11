@@ -14,7 +14,10 @@ fn lazy_state() -> AppState {
     let pool = MySqlPoolOptions::new()
         .connect_lazy("mysql://nobody:nope@127.0.0.1:1/none")
         .expect("lazy pool 构造失败");
-    AppState::new(AppConfig::new(RawAppConfig::default()), pool)
+    AppState::new(
+        AppConfig::new(RawAppConfig::default()).expect("配置构造失败"),
+        pool,
+    )
 }
 
 async fn send(method: &str, uri: &str, body: Option<Value>) -> (StatusCode, String, Value) {
@@ -120,4 +123,87 @@ async fn login_with_unreachable_db_maps_to_500_envelope() {
     assert_eq!(body["code"], 500);
     assert_eq!(body["message"], "数据库错误");
     assert_eq!(body["data"], Value::Null);
+}
+
+/// 校验失败的契约:422 + 结构化 errors + 中文文案(库的 catalog 已注入中文),
+/// 且 params 不回显提交值、规则消息取自 DTO 的 validator 声明。
+#[tokio::test]
+async fn validation_failure_is_422_with_structured_errors() {
+    let (status, content_type, body) = post_json(
+        "/api/v1/auth/register",
+        json!({"username": "ab", "email": "nope", "password": "short"}),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(
+        content_type.starts_with("application/json"),
+        "content-type 应为 JSON: {content_type}"
+    );
+    assert_eq!(body["code"], 422);
+    assert_eq!(body["message"], "校验失败");
+    assert_eq!(body["errors"]["username"][0]["code"], "length");
+    assert_eq!(
+        body["errors"]["username"][0]["message"],
+        "用户名长度需在 3-20 之间"
+    );
+    assert!(
+        body["errors"]["username"][0]["params"]
+            .get("value")
+            .is_none(),
+        "params 不得回显提交值: {}",
+        body["errors"]["username"][0]["params"]
+    );
+    assert_eq!(body["data"], Value::Null);
+}
+
+fn has_chinese(text: &str) -> bool {
+    text.chars().any(|c| ('\u{4e00}'..='\u{9fff}').contains(&c))
+}
+
+/// 递归收集 `value` 下所有 `description`(object 与 array 都下钻)。
+fn collect_descriptions(value: &Value, out: &mut Vec<String>) {
+    match value {
+        Value::Object(map) => {
+            if let Some(Value::String(text)) = map.get("description") {
+                out.push(text.clone());
+            }
+            for child in map.values() {
+                collect_descriptions(child, out);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                collect_descriptions(item, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// 库自有 schema 的描述来自英文 rustdoc,由 `texts::localize_schema` 统一换成中文。
+/// 上游改写文案会让本地化表静默失配(描述退回英文),故在此断言覆盖完整。
+#[test]
+fn openapi_schema_descriptions_are_chinese() {
+    let spec = serde_json::to_value(hoshiyomi::api_document()).expect("spec 序列化失败");
+    let schemas = spec
+        .get("components")
+        .and_then(|components| components.get("schemas"))
+        .expect("spec 缺少 components.schemas");
+
+    let mut descriptions = Vec::new();
+    collect_descriptions(schemas, &mut descriptions);
+    assert!(
+        !descriptions.is_empty(),
+        "components.schemas 下没有任何描述,该断言失去意义"
+    );
+
+    let untranslated: Vec<&String> = descriptions
+        .iter()
+        .filter(|text| !has_chinese(text))
+        .collect();
+    assert!(
+        untranslated.is_empty(),
+        "以下 schema 描述未本地化,请补 texts::localize_schema 的表: {untranslated:#?}"
+    );
 }

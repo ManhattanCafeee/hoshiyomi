@@ -7,3 +7,6 @@ target/
 .env
 .env.*
 !.env.example
+
+# 本地文档(vivarium 计划等);锚定仓库根目录,避免匹配被跟踪的 backend/docs/
+/docs/

@@ -1,18 +1,17 @@
-use axum::{Json, extract::State, response::IntoResponse};
-use axum_extra::extract::cookie::CookieJar;
+use axum::{Json, extract::State, http::header, response::IntoResponse};
 
 use crate::{
-    common::{extractor::AppJson, response::ApiResponse},
-    error::{AppError, ErrorKind},
+    common::response::ApiResponse,
     modules::{role::models::DefaultRole, user::models::UserResp},
     state::AppState,
 };
+use vivarium_rs::{ApiError, ErrorKind, Varser};
 
 use super::{
-    extractor::{JwtCtx, SessionCtx, remove_session_cookie, set_session_cookie},
+    extractor::{JwtCtx, SessionCtx},
     models::{
-        AuthStateResp, JwtEchoResp, LoginReq, LoginResp, MessageResp, RefreshReq, RefreshResp,
-        RegisterReq,
+        AuthStateResp, HsClaims, JwtEchoResp, LoginReq, LoginResp, MessageResp, RefreshReq,
+        RefreshResp, RegisterReq,
     },
 };
 
@@ -30,8 +29,8 @@ use super::{
 )]
 pub async fn register(
     State(state): State<AppState>,
-    AppJson(payload): AppJson<RegisterReq>,
-) -> Result<impl IntoResponse, AppError> {
+    Varser(payload): Varser<RegisterReq>,
+) -> Result<impl IntoResponse, ApiError> {
     let user = state
         .srv()
         .user
@@ -43,10 +42,15 @@ pub async fn register(
         .role
         .find_by_name(DefaultRole::User.name())
         .await?
-        .ok_or_else(|| ErrorKind::Internal.msg("默认角色未初始化,请先运行 CLI 的 init 命令"))?;
+        .ok_or_else(|| {
+            ApiError::new(
+                ErrorKind::Internal,
+                "默认角色未初始化,请先运行 CLI 的 init 命令",
+            )
+        })?;
     state.srv().role.assign_to_user(user.id, role.id).await?;
 
-    Ok(Json(ApiResponse::success(UserResp::from(user))))
+    Ok(Json(ApiResponse::ok(UserResp::from(user))))
 }
 
 #[utoipa::path(
@@ -63,26 +67,27 @@ pub async fn register(
 )]
 pub async fn login(
     State(state): State<AppState>,
-    jar: CookieJar,
-    AppJson(payload): AppJson<LoginReq>,
-) -> Result<impl IntoResponse, AppError> {
+    Varser(payload): Varser<LoginReq>,
+) -> Result<impl IntoResponse, ApiError> {
     let auth_user = state
         .srv()
         .auth
         .authenticate(&payload.username, &payload.password)
         .await?
-        .ok_or_else(|| ErrorKind::InvalidCredentials.msg("用户名或密码错误"))?;
+        .ok_or_else(|| ApiError::forbidden("用户名或密码错误"))?;
 
-    let session_id = state.srv().session.create(auth_user.user.id).await?;
-    let jar = set_session_cookie(jar, &state, &session_id);
+    let session = state.srv().session();
+    let session_id = session.start(auth_user.user.id).await?;
 
-    Ok((
-        jar,
-        Json(ApiResponse::success(AuthStateResp {
-            user: UserResp::from(auth_user.user),
-            permissions: auth_user.permissions,
-        })),
-    ))
+    let mut response = Json(ApiResponse::ok(AuthStateResp {
+        user: UserResp::from(auth_user.user),
+        permissions: auth_user.permissions,
+    }))
+    .into_response();
+    response
+        .headers_mut()
+        .append(header::SET_COOKIE, session.set_cookie_value(&session_id));
+    Ok(response)
 }
 
 #[utoipa::path(
@@ -98,10 +103,10 @@ pub async fn login(
 pub async fn me(
     State(state): State<AppState>,
     ctx: SessionCtx,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<impl IntoResponse, ApiError> {
     let auth_user = state.srv().auth.get_auth_user(ctx.user_id).await?;
 
-    Ok(Json(ApiResponse::success(AuthStateResp {
+    Ok(Json(ApiResponse::ok(AuthStateResp {
         user: UserResp::from(auth_user.user),
         permissions: auth_user.permissions,
     })))
@@ -119,20 +124,20 @@ pub async fn me(
 )]
 pub async fn logout(
     State(state): State<AppState>,
-    jar: CookieJar,
     ctx: SessionCtx,
-) -> Result<impl IntoResponse, AppError> {
-    state.srv().session.delete_by_user_id(ctx.user_id).await?;
+) -> Result<impl IntoResponse, ApiError> {
+    let session = state.srv().session();
+    session.end_for_user(ctx.user_id).await?;
 
+    let mut response = Json(ApiResponse::ok(MessageResp {
+        message: "已退出登录".to_string(),
+    }))
+    .into_response();
     // 清除客户端 Cookie,避免浏览器此后每次请求携带死会话
-    let jar = remove_session_cookie(jar, &state);
-
-    Ok((
-        jar,
-        Json(ApiResponse::success(MessageResp {
-            message: "已退出登录".to_string(),
-        })),
-    ))
+    response
+        .headers_mut()
+        .append(header::SET_COOKIE, session.clear_cookie_value());
+    Ok(response)
 }
 
 #[utoipa::path(
@@ -149,25 +154,22 @@ pub async fn logout(
 )]
 pub async fn jwt_login(
     State(state): State<AppState>,
-    AppJson(payload): AppJson<LoginReq>,
-) -> Result<impl IntoResponse, AppError> {
+    Varser(payload): Varser<LoginReq>,
+) -> Result<impl IntoResponse, ApiError> {
     let auth_user = state
         .srv()
         .auth
         .authenticate(&payload.username, &payload.password)
         .await?
-        .ok_or_else(|| ErrorKind::InvalidCredentials.msg("用户名或密码错误"))?;
+        .ok_or_else(|| ApiError::forbidden("用户名或密码错误"))?;
 
-    let access_token = state.srv().token.encode_access_token(&auth_user.user)?;
-    let refresh_token = state
-        .srv()
-        .token
-        .generate_refresh_token(auth_user.user.id)
-        .await?;
+    let rt = state.srv().runtime();
+    let mut claims = HsClaims::new(auth_user.user.id, auth_user.user.username.clone());
+    let pair = rt.tokens.issue(&mut claims, auth_user.user.id).await?;
 
-    Ok(Json(ApiResponse::success(LoginResp {
-        access_token,
-        refresh_token,
+    Ok(Json(ApiResponse::ok(LoginResp {
+        access_token: pair.access_token,
+        refresh_token: pair.refresh_token,
         state: AuthStateResp {
             user: UserResp::from(auth_user.user),
             permissions: auth_user.permissions,
@@ -189,17 +191,21 @@ pub async fn jwt_login(
 )]
 pub async fn jwt_refresh(
     State(state): State<AppState>,
-    AppJson(payload): AppJson<RefreshReq>,
-) -> Result<impl IntoResponse, AppError> {
-    let rotated = state
-        .srv()
-        .token
-        .rotate_refresh_token(&payload.refresh_token)
+    Varser(payload): Varser<RefreshReq>,
+) -> Result<impl IntoResponse, ApiError> {
+    let rt = state.srv().runtime();
+    let users = state.srv().user.clone();
+    let pair = rt
+        .tokens
+        .rotate::<HsClaims, _, _>(&payload.refresh_token, move |user_id| async move {
+            let user = users.get_by_id(user_id).await?;
+            Ok(HsClaims::new(user.id, user.username))
+        })
         .await?;
 
-    Ok(Json(ApiResponse::success(RefreshResp {
-        access_token: rotated.access_token,
-        refresh_token: rotated.refresh_token,
+    Ok(Json(ApiResponse::ok(RefreshResp {
+        access_token: pair.access_token,
+        refresh_token: pair.refresh_token,
     })))
 }
 
@@ -216,14 +222,10 @@ pub async fn jwt_refresh(
 pub async fn jwt_logout(
     State(state): State<AppState>,
     ctx: JwtCtx,
-) -> Result<impl IntoResponse, AppError> {
-    state
-        .srv()
-        .token
-        .delete_all_refresh_tokens(ctx.user_id)
-        .await?;
+) -> Result<impl IntoResponse, ApiError> {
+    state.srv().runtime().tokens.revoke_all(ctx.user_id).await?;
 
-    Ok(Json(ApiResponse::success(MessageResp {
+    Ok(Json(ApiResponse::ok(MessageResp {
         message: "已退出登录".to_string(),
     })))
 }
@@ -241,10 +243,10 @@ pub async fn jwt_logout(
 pub async fn jwt_me(
     State(state): State<AppState>,
     ctx: JwtCtx,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<impl IntoResponse, ApiError> {
     let auth_user = state.srv().auth.get_auth_user(ctx.user_id).await?;
 
-    Ok(Json(ApiResponse::success(AuthStateResp {
+    Ok(Json(ApiResponse::ok(AuthStateResp {
         user: UserResp::from(auth_user.user),
         permissions: auth_user.permissions,
     })))
@@ -260,8 +262,8 @@ pub async fn jwt_me(
         (status = 401, description = "令牌无效"),
     ),
 )]
-pub async fn jwt_echo(ctx: JwtCtx) -> Result<impl IntoResponse, AppError> {
-    Ok(Json(ApiResponse::success(JwtEchoResp {
+pub async fn jwt_echo(ctx: JwtCtx) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(ApiResponse::ok(JwtEchoResp {
         user_id: ctx.user_id,
         username: ctx.username().to_string(),
     })))

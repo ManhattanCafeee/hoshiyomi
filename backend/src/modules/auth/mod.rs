@@ -1,10 +1,8 @@
 pub mod extractor;
 pub mod handlers;
 pub mod models;
-pub mod repository;
 pub mod service;
-pub mod session;
-pub mod token;
+pub mod stores;
 
 use utoipa_axum::{router::OpenApiRouter, routes};
 

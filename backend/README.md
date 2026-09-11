@@ -9,7 +9,7 @@
 - **用户管理**:注册、登录、查询、分页列表、修改用户名、修改密码、删除
 - **RBAC 权限**:角色-权限 JSON 模型,权限码支持通配符(`*`、`user:*`);内置 superuser / admin / user 三个默认角色
 - **双认证体系**
-  - 会话认证:服务端会话存储(UUID)、HttpOnly Cookie、滑动续期
+  - 会话认证:服务端会话存储(库只落 SHA-256 摘要)、HttpOnly Cookie、滑动续期
   - JWT 认证:HS256 访问令牌 + 一次性轮换刷新令牌(并发重放返回 401)
 - **安全细节**:Argon2 密码哈希、未知用户名登录时恒定时间校验、内部错误信息不外泄、MySQL 唯一键竞态回退 409
 - **OpenAPI 文档**:utoipa 自动生成,Scalar + Swagger UI 双界面
@@ -19,14 +19,15 @@
 
 | 层 | 选型 |
 | --- | --- |
+| 基础库 | vivarium-rs 0.3.1(错误信封 / 校验提取器 / CRUD / 认证 / 配置 / OpenAPI / telemetry) |
 | Web 框架 / 运行时 | axum 0.8 · tokio |
 | 数据库 | MySQL · sqlx 0.9(迁移内嵌二进制,启动时自动执行) |
-| 认证安全 | argon2 · jsonwebtoken · uuid |
-| 参数校验 | validator |
-| 配置 | config + dotenvy(默认值 → config.toml → 环境变量分层) |
-| 日志 | tracing(标准输出 + 按日滚动 JSON 文件) |
+| 认证安全 | Argon2 口令、HS256 JWT、会话与刷新令牌摘要存储(均由库提供) |
+| 参数校验 | validator(经库的 `Varser` 家族) |
+| 配置 | vivarium-config + figment + dotenvy(默认值 → config.toml → 环境变量分层,可热重载) |
+| 日志 | tracing(库的 telemetry:标准输出 + 按日滚动 JSON 文件) |
 | CLI | clap · inquire |
-| OpenAPI | utoipa 5 + utoipa-axum + Scalar / Swagger UI |
+| OpenAPI | utoipa 5 + utoipa-axum + Scalar / Swagger UI(由库挂载) |
 
 ## 快速开始
 
@@ -78,7 +79,7 @@ cargo run
 { "code": 0, "message": "成功", "data": { } }
 ```
 
-- `code = 0` 表示成功,否则等于 HTTP 状态码(400/401/403/404/409/500)
+- `code = 0` 表示成功,否则等于 HTTP 状态码(400 解析失败 / 401 / 403 / 404 / 409 / 422 校验失败 / 500)
 - `errors` 字段仅在校验失败时出现(字段级错误详情)
 - 分页接口返回 `PageData { items, total, page, per_page }`
 
@@ -160,35 +161,33 @@ cargo run --example dump_openapi > docs/openapi.json   # 导出 OpenAPI 规范(�
 要点:
 
 - **迁移**:位于 `migrations/`,命名格式 `{YYYYMMDDHHMMSS}_{描述}.sql`;由 `sqlx::migrate!` 内嵌进二进制,服务启动时自动执行。CLI 子命令不执行迁移。
-- **时间**:数据库连接统一 `UTC` 会话时区,SQL 写入用 `UTC_TIMESTAMP()`,代码读取用 `DateTime<Utc>`。
+- **时间**:数据库连接统一 `UTC` 会话时区;时间列默认 `UTC_TIMESTAMP()`,库的 `Expr::Now`(渲染为 `CURRENT_TIMESTAMP`)依赖该会话时区才与之等价,代码读取用 `DateTime<Utc>`。
 - **测试**:集成测试(`tests/api.rs`)以进程内 `oneshot` 方式驱动 Router,使用惰性连接池(不要求真实数据库);单元测试内联在源文件 `#[cfg(test)]` 模块中。
-- **错误处理**:单一 `AppError` + `ErrorKind`(`src/error.rs`),内部错误原因不向客户端泄露。
+- **错误处理**:统一使用库的 `ApiError` + `ErrorKind`(中文文案在 `src/texts.rs` 一次性注入);内部错误原因不向客户端泄露(库的 `VIVARIUM_DEBUG` 已在启动时显式关闭)。
 
 ## 项目结构
 
 ```rust
 src/
 ├── main.rs            # 二进制入口 → cli::run()
-├── lib.rs             # build_app:路由组装(含 /api-docs、中间件、fallback)
-├── serve.rs           # 服务启动:配置 → 日志 → 连接/迁移 → 监听
-├── config/            # 分层配置(schema.rs 为默认值来源)
+├── lib.rs             # build_app(路由 + /api-docs + 中间件 + fallback)与 api_document
+├── serve.rs           # 服务启动:配置(含热重载) → 日志 → 连接/迁移 → 监听
+├── config/            # 分层配置(mod.rs 为库 Config 的包装,schema.rs 为默认值来源,legacy.rs 为扁平环境变量兼容层)
 ├── cli/               # clap 命令定义与实现
 ├── db.rs              # 连接池(UTC 时区)与迁移执行
-├── error.rs           # AppError / ErrorKind / bail! / map_duplicate_key
-├── state.rs           # AppState + Services 依赖注入容器
-├── infra.rs           # tracing 初始化
-├── common/            # ApiResponse 响应封装、校验提取器(AppPath/AppQuery/AppJson)
-├── middleware/        # CORS、会话 Cookie 滑动续期
-├── util/              # Argon2 密码工具
+├── texts.rs           # 库文案的中文注入
+├── state.rs           # AppState + Services 容器(含可热替换的 AuthRuntime)
+├── common/            # PageData(信封与校验提取器由库提供)
+├── middleware/        # CORS
 └── modules/
-    ├── auth/          # 注册/登录/会话/JWT/刷新令牌(extractor/service/token/session)
+    ├── auth/          # 注册/登录/会话/JWT/刷新令牌(extractor/handlers/models/service/stores)
     ├── user/          # 用户 CRUD
     └── role/          # 角色与权限(仅 CLI 管理,无 HTTP 接口)
 migrations/            # SQL 迁移(内嵌、启动时执行)
 tests/                 # 集成测试
 ```
 
-每个领域模块遵循四层结构:`handlers.rs`(HTTP + utoipa)→ `service.rs`(业务逻辑)→ `repository.rs`(裸 sqlx 自由函数)→ `models.rs`(DTO 与 FromRow 结构)。
+每个领域模块:`handlers.rs`(HTTP + utoipa)→ `service.rs`(业务逻辑,直接调用库的 `create`/`find_by_id`/`Query`/`Update`/`delete`,不再有 repository 层)→ `models.rs`(DTO 与 `#[derive(vivarium_rs::Entity)]` 行模型)。仅 `role/service.rs` 保留两条原生 SQL(`user_roles × roles` JOIN 与 `user_roles` INSERT)。
 
 ## 许可证
 

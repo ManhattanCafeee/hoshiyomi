@@ -42,14 +42,36 @@ impl DefaultRole {
 }
 
 /// roles 表行:permissions 为 JSON 数组
-#[derive(Debug, sqlx::FromRow)]
+///
+/// 两个时间列标 `#[entity(skip)]`,理由同 `User`。
+#[derive(Debug, sqlx::FromRow, vivarium_rs::Entity)]
+#[entity(table = "roles")]
 pub struct Role {
     pub id: u64,
     pub name: String,
     pub description: Option<String>,
+    #[entity(json)]
     pub permissions: sqlx::types::Json<Vec<Perm>>,
+    #[entity(skip)]
     pub created_at: chrono::DateTime<chrono::Utc>,
+    #[entity(skip)]
     pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// roles 表可寻址列
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RoleCol {
+    Id,
+    Name,
+}
+
+impl vivarium_rs::Column for RoleCol {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Id => "id",
+            Self::Name => "name",
+        }
+    }
 }
 
 impl Role {
@@ -115,20 +137,11 @@ pub enum Perm {
     RoleAll,
 }
 
-/// 权限码匹配:持有码 `*` 匹配一切;`前缀:*` 匹配同前缀的任意码
+/// 权限码匹配:持有码 `*` 匹配一切;`前缀:*` 匹配同前缀的任意码。
+///
+/// 直接委托库的 `perms_match`(语义一致),本模块的单元测试即为等价性证明。
 pub fn perms_match(self_code: &str, target_code: &str) -> bool {
-    if self_code == "*" {
-        return true;
-    }
-    if self_code == target_code {
-        return true;
-    }
-    if let (Some(prefix), Some(target_prefix)) =
-        (self_code.strip_suffix(":*"), target_code.split(':').next())
-    {
-        return prefix == target_prefix;
-    }
-    false
+    vivarium_rs::perms_match(self_code, target_code)
 }
 
 impl Perm {

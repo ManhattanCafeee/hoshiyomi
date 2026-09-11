@@ -1,20 +1,10 @@
-use std::sync::LazyLock;
-
 use sqlx::MySqlPool;
 
-use crate::{
-    bail,
-    error::{ErrorKind, Result},
-    modules::{
-        role::{models::Perm, service::RoleService},
-        user::{models::User, repository},
-    },
-    util::password,
+use crate::modules::{
+    role::{models::Perm, service::RoleService},
+    user::{models::User, service::UserService},
 };
-
-/// 用户名不存在时用于等时校验的固定哈希,消除用户枚举计时侧信道
-static DUMMY_PASSWORD_HASH: LazyLock<String> =
-    LazyLock::new(|| password::hash("hoshiyomi-timing-dummy").expect("dummy 密码哈希初始化失败"));
+use vivarium_rs::{ApiError, PermissionSet, Result, verify_login};
 
 pub struct AuthUser {
     pub user: User,
@@ -42,13 +32,17 @@ impl AuthService {
         username: &str,
         password_str: &str,
     ) -> Result<Option<AuthUser>> {
-        let Some(user) = repository::find_user_by_username(&self.pool, username).await? else {
+        let Some(user) = UserService::new(self.pool.clone())
+            .find_by_username(username)
+            .await?
+        else {
+            // 用户不存在时也跑一次校验(库的 verify_login(None) 走内置 dummy 哈希),
             // 与「用户存在但密码错误」路径等时,防止按响应时间枚举用户名
-            let _ = password::verify(password_str, &DUMMY_PASSWORD_HASH);
+            let _ = verify_login(password_str, None);
             return Ok(None);
         };
 
-        if !password::verify(password_str, &user.password)? {
+        if !verify_login(password_str, Some(user.password.as_str()))? {
             return Ok(None);
         }
 
@@ -57,9 +51,10 @@ impl AuthService {
     }
 
     pub async fn get_auth_user(&self, user_id: u64) -> Result<AuthUser> {
-        let user = repository::find_user_by_id(&self.pool, user_id)
+        let user = UserService::new(self.pool.clone())
+            .find_by_id(user_id)
             .await?
-            .ok_or_else(|| ErrorKind::NotFound.msg("用户不存在"))?;
+            .ok_or_else(|| ApiError::not_found("用户不存在"))?;
         let permissions = self.get_user_permissions(user_id).await?;
         Ok(AuthUser::new(user, permissions))
     }
@@ -70,15 +65,9 @@ impl AuthService {
             .await
     }
 
-    pub async fn check_permission(&self, user_id: u64, perm: Perm) -> Result<bool> {
-        let perms = self.get_user_permissions(user_id).await?;
-        Ok(perms.iter().any(|p| p.matches(perm.code())))
-    }
-
+    /// 权限不足时由库的 `PermissionSet::require` 产出 403(文案取 catalog `forbidden`)
     pub async fn require_permission(&self, user_id: u64, perm: Perm) -> Result<()> {
-        if !self.check_permission(user_id, perm).await? {
-            bail!(ErrorKind::PermissionDenied, "权限不足");
-        }
-        Ok(())
+        let perms = self.get_user_permissions(user_id).await?;
+        PermissionSet::new(perms.iter().map(|p| p.code())).require(perm.code())
     }
 }

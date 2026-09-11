@@ -1,17 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "utoipa-axum",
-    "description": "Utoipa's axum bindings for seamless integration for the two",
-    "contact": {
-      "name": "Juha Kukkonen",
-      "email": "juha7kukkonen@gmail.com"
-    },
-    "license": {
-      "name": "MIT OR Apache-2.0",
-      "identifier": "MIT OR Apache-2.0"
-    },
-    "version": "0.2.0"
+    "title": "hoshiyomi API",
+    "description": "hoshiyomi 后端 REST API",
+    "version": "0.1.0"
   },
   "paths": {
     "/api/v1/auth/jwt/echo": {
@@ -590,7 +582,8 @@
         "properties": {
           "code": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "description": "0 表示成功,否则为失败的 HTTP 状态码"
           },
           "data": {
             "type": "object",
@@ -611,10 +604,19 @@
             }
           },
           "errors": {
-            "type": "object"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ValidationErrors",
+                "description": "校验失败明细,仅在校验失败时出现"
+              }
+            ]
           },
           "message": {
-            "type": "string"
+            "type": "string",
+            "description": "简短的可读消息;成功时为 \"ok\""
           }
         }
       },
@@ -628,7 +630,8 @@
         "properties": {
           "code": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "description": "0 表示成功,否则为失败的 HTTP 状态码"
           },
           "data": {
             "type": "object",
@@ -648,10 +651,19 @@
             }
           },
           "errors": {
-            "type": "object"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ValidationErrors",
+                "description": "校验失败明细,仅在校验失败时出现"
+              }
+            ]
           },
           "message": {
-            "type": "string"
+            "type": "string",
+            "description": "简短的可读消息;成功时为 \"ok\""
           }
         }
       },
@@ -665,7 +677,8 @@
         "properties": {
           "code": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "description": "0 表示成功,否则为失败的 HTTP 状态码"
           },
           "data": {
             "type": "object",
@@ -687,10 +700,19 @@
             }
           },
           "errors": {
-            "type": "object"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ValidationErrors",
+                "description": "校验失败明细,仅在校验失败时出现"
+              }
+            ]
           },
           "message": {
-            "type": "string"
+            "type": "string",
+            "description": "简短的可读消息;成功时为 \"ok\""
           }
         }
       },
@@ -704,7 +726,8 @@
         "properties": {
           "code": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "description": "0 表示成功,否则为失败的 HTTP 状态码"
           },
           "data": {
             "type": "object",
@@ -718,10 +741,19 @@
             }
           },
           "errors": {
-            "type": "object"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ValidationErrors",
+                "description": "校验失败明细,仅在校验失败时出现"
+              }
+            ]
           },
           "message": {
-            "type": "string"
+            "type": "string",
+            "description": "简短的可读消息;成功时为 \"ok\""
           }
         }
       },
@@ -735,7 +767,8 @@
         "properties": {
           "code": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "description": "0 表示成功,否则为失败的 HTTP 状态码"
           },
           "data": {
             "type": "object",
@@ -797,10 +830,19 @@
             }
           },
           "errors": {
-            "type": "object"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ValidationErrors",
+                "description": "校验失败明细,仅在校验失败时出现"
+              }
+            ]
           },
           "message": {
-            "type": "string"
+            "type": "string",
+            "description": "简短的可读消息;成功时为 \"ok\""
           }
         }
       },
@@ -814,7 +856,8 @@
         "properties": {
           "code": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "description": "0 表示成功,否则为失败的 HTTP 状态码"
           },
           "data": {
             "type": "object",
@@ -832,10 +875,19 @@
             }
           },
           "errors": {
-            "type": "object"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ValidationErrors",
+                "description": "校验失败明细,仅在校验失败时出现"
+              }
+            ]
           },
           "message": {
-            "type": "string"
+            "type": "string",
+            "description": "简短的可读消息;成功时为 \"ok\""
           }
         }
       },
@@ -849,16 +901,26 @@
         "properties": {
           "code": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "description": "0 表示成功,否则为失败的 HTTP 状态码"
           },
           "data": {
             "type": "string"
           },
           "errors": {
-            "type": "object"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ValidationErrors",
+                "description": "校验失败明细,仅在校验失败时出现"
+              }
+            ]
           },
           "message": {
-            "type": "string"
+            "type": "string",
+            "description": "简短的可读消息;成功时为 \"ok\""
           }
         }
       },
@@ -872,7 +934,8 @@
         "properties": {
           "code": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "description": "0 表示成功,否则为失败的 HTTP 状态码"
           },
           "data": {
             "type": "object",
@@ -904,10 +967,19 @@
             }
           },
           "errors": {
-            "type": "object"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ValidationErrors",
+                "description": "校验失败明细,仅在校验失败时出现"
+              }
+            ]
           },
           "message": {
-            "type": "string"
+            "type": "string",
+            "description": "简短的可读消息;成功时为 \"ok\""
           }
         }
       },
@@ -941,6 +1013,32 @@
           },
           "old_password": {
             "type": "string"
+          }
+        }
+      },
+      "FieldViolation": {
+        "type": "object",
+        "description": "某个字段的一条失败规则",
+        "required": [
+          "code",
+          "params"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "失败的规则名(如 \"length\"、\"email\")"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "DTO 为该规则声明的消息(声明了才有)"
+          },
+          "params": {
+            "type": "object",
+            "description": "失败规则的参数(如 {\"min\": 3, \"max\": 20})。提交的字段值刻意不回显:validator 会把它记为 params.value,原样回显会把原始输入(口令、令牌)返回给客户端。",
+            "additionalProperties": true
           }
         }
       },
@@ -1104,6 +1202,19 @@
           "username": {
             "type": "string"
           }
+        }
+      },
+      "ValidationErrors": {
+        "type": "object",
+        "description": "按字段分组的全部违规。键为扁平化的字段路径:顶层字段是 email,嵌套结构体字段是 profile.email,列表元素是 items[0].name。映射有序,故序列化结果稳定。",
+        "additionalProperties": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/FieldViolation"
+          }
+        },
+        "propertyNames": {
+          "type": "string"
         }
       }
     }

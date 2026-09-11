@@ -3,14 +3,42 @@ use utoipa::ToSchema;
 use validator::Validate;
 
 /// users 表行模型(password 不对外序列化,响应一律走 UserResp)
-#[derive(Debug, Clone, sqlx::FromRow)]
+///
+/// 两个时间列标 `#[entity(skip)]`:它们由 DDL 的 `DEFAULT (UTC_TIMESTAMP())` 生成,
+/// 而库的 `create` 会写全部非 id、非 skip 列,不 skip 会用占位值覆盖默认值。
+#[derive(Debug, Clone, sqlx::FromRow, vivarium_rs::Entity)]
+#[entity(table = "users")]
 pub struct User {
     pub id: u64,
     pub username: String,
     pub email: String,
     pub password: String,
+    #[entity(skip)]
     pub created_at: chrono::DateTime<chrono::Utc>,
+    #[entity(skip)]
     pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// users 表可寻址列(库的 Query/Update 需要显式列名)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UserCol {
+    Id,
+    Username,
+    Email,
+    Password,
+    UpdatedAt,
+}
+
+impl vivarium_rs::Column for UserCol {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Id => "id",
+            Self::Username => "username",
+            Self::Email => "email",
+            Self::Password => "password",
+            Self::UpdatedAt => "updated_at",
+        }
+    }
 }
 
 #[derive(Debug, serde::Serialize, ToSchema)]
@@ -93,3 +121,9 @@ fn deserialize_u64_id<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u64, D::
     raw.parse()
         .map_err(|_| serde::de::Error::custom(format!("用户 id 无效: {raw}")))
 }
+// 库的校验提取器(Varser/PathVarser/QueryVarser)要求显式的初始化钩子
+impl vivarium_rs::Initializer for IdPath {}
+impl vivarium_rs::Initializer for CreateUserReq {}
+impl vivarium_rs::Initializer for UpdateUsernameReq {}
+impl vivarium_rs::Initializer for ChangePasswordReq {}
+impl vivarium_rs::Initializer for PaginationReq {}
