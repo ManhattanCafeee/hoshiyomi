@@ -8,3 +8,9 @@ allowBuilds:
   esbuild: true
   unrs-resolver: true
   vue-demi: true
+overrides:
+  # GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq(high,DoS):
+  # @nuxtjs/seo > nuxt-og-image / nuxt-seo-utils 依赖的 image-size 已修复版本
+  'image-size@<2.0.3': ^2.0.3
+audit:
+  level: high

@@ -18,6 +18,13 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      # 在仓库根执行:Cargo.lock 与 .cargo/audit.toml(含已接受风险 RUSTSEC-2023-0071,rsa)都在虚拟工作区根
+      - run: cargo audit
+
       # lint 策略集中在根 Cargo.toml 的 [workspace.lints],clippy 无需额外开关
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
@@ -38,17 +45,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
+      # pnpm 12 自包含二进制 + Node 26 一次装好;store 缓存与 lockfile 供应链校验结果
+      # 均由该 action 维护(action-setup + setup-node 的组合不缓存后者,每个 job 白等 10s+)
+      - name: 安装 pnpm 12 + Node 26
+        uses: pnpm/setup@v3
         with:
-          version: 11
+          working-directory: frontend
+          runtime: node@26
+          cache: true
+          require-lockfile: true   # 内部执行 pnpm install --frozen-lockfile
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
+      # 漏洞门禁阈值见 frontend/pnpm-workspace.yaml 的 audit.level
+      - name: 依赖漏洞检查(high 及以上)
+        run: pnpm audit
 
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
 
       # 生成的 SDK 必须与 backend/docs/openapi.json 同批提交
       - run: pnpm gen:api
@@ -67,20 +78,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
+      - name: 安装 pnpm 12 + Node 26
+        uses: pnpm/setup@v3
         with:
-          version: 11
+          working-directory: uniapp
+          runtime: node@26
+          cache: true
+          require-lockfile: true
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: uniapp/pnpm-lock.yaml
+      # uni-app/Vite 5 构建链的 dev 依赖有多条无补丁高危项,故只门禁 prod 依赖(阈值 critical)
+      - name: 依赖漏洞检查(prod 依赖,critical 及以上)
+        run: pnpm audit --prod
 
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
 
       - run: pnpm gen:api
       - name: SDK 与提交版一致
         run: git diff --exit-code -- src/api/generated
 
       - run: pnpm type-check
+      - run: pnpm build
+      - name: 微信小程序构建(覆盖 MP-WEIXIN 条件编译分支)
+        run: pnpm build wx

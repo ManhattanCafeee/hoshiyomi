@@ -1,0 +1,10 @@
+# cargo-audit 配置(CI 与本地共用)。
+# 位置必须在仓库根:根 Cargo.toml 是虚拟工作区清单,Cargo.lock 也在这里。
+[advisories]
+# RUSTSEC-2023-0071(Marvin Attack:rsa 定时侧信道,medium)
+#   - 依赖链:jsonwebtoken>rsa 0.9.10 与 sqlx-mysql>rsa 0.10.0-rc.18,两处均无法从本仓库替换
+#   - 上游"无可用修复版本"(0.9/0.10-rc 全部受影响),故只能接受
+#   - 实际暴露面:攻击者需能对 rsa 解密/签名做大量精确计时测量;本项目 JWT 用 HS256,
+#     MySQL 走自有实例(docker-compose.yml),不对外提供 RSA 运算接口
+# 若将来上游发布修复版本,请移除本条并升级依赖。
+ignore = ["RUSTSEC-2023-0071"]

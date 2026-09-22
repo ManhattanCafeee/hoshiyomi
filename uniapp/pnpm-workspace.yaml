@@ -1,8 +1,15 @@
-# 单项目工作区:承载 pnpm 11 的项目级设置(项目 .npmrc 中的同名字段已被 pnpm 11 忽略)
+# 单项目工作区:承载 pnpm 12 的项目级设置(.npmrc 不再被读取,所有设置写在这里)
 packages: []
 nodeLinker: hoisted
 overrides:
+  # GHSA-fjxv-7rqg-78g4(critical)/GHSA-hmw2-7cc7-3qxx(high):minidev > request 使用 form-data 2.x,
+  # request 声明 ^2.3.2,2.5.6 兼容;3.x 实例(jsdom/superagent)不受影响
+  form-data@<2.5.6: ^2.5.6
   unconfig: 7.3.2
+# uni-app/Vite 5 构建链在 dev 依赖上有多条无补丁高危项(vite>=6.4.3、tar 7.x 等),
+# 故门禁只覆盖随包发布的 prod 依赖,且阈值取 critical;CI 对应 `pnpm audit --prod`
+audit:
+  level: critical
 allowBuilds:
   '@parcel/watcher': true
   '@uni-helper/unocss-preset-uni': true
